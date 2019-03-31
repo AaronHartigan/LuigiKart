@@ -138,6 +138,31 @@ public final class Vector3f implements Vector3 {
     public static Vector3 createFrom(float x, float y, float z) {
         return new Vector3f(x, y, z);
     }
+    
+    public static Vector3 createFrom(String x, String y, String z) {
+        return new Vector3f(
+    		Float.parseFloat(x),
+			Float.parseFloat(y),
+			Float.parseFloat(z)
+		);
+    }
+    
+    public static Vector3 createFrom(String vec, String delimiter) {
+    	String[] tokens = vec.split(delimiter);
+        return Vector3f.createFrom(
+    		tokens[0],
+    		tokens[1],
+    		tokens[2]
+		);
+    }
+    
+    public static Vector3 createFrom(String[] vec) {
+        return Vector3f.createFrom(
+    		vec[0],
+    		vec[1],
+    		vec[2]
+		);
+    }
 
     /**
      * Creates a new {@link Vector3 vector} with the specified values.
@@ -422,5 +447,13 @@ public final class Vector3f implements Vector3 {
     public String toString() {
         return Vector3f.class.getSimpleName() + "(" + x + ", " + y + ", " + z + ")";
     }
+
+	@Override
+	public String serialize() {
+        StringBuilder fmt = new StringBuilder();
+        fmt.append("%f,%f,%f");
+
+        return String.format(fmt.toString(), x, y, z);
+	}
 
 }

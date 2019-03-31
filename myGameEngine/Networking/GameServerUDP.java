@@ -2,15 +2,30 @@ package myGameEngine.Networking;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.UUID;
 
+import a3.GameState;
+import a3.GhostAvatar;
 import ray.networking.server.GameConnectionServer;
 import ray.networking.server.IClientInfo;
+import ray.rml.Matrix3f;
+import ray.rml.Vector3f;
 
 public class GameServerUDP extends GameConnectionServer<UUID> {
+	private GameState gameState = null;
+	private long TICK_RATE = 60;
 
-	public GameServerUDP(int localPort, ProtocolType protocolType) throws IOException {
+	public GameServerUDP(int localPort, ProtocolType protocolType, GameState gameState) throws IOException {
 		super(localPort, protocolType);
+		this.gameState = gameState;
+		try {
+			sendPackets();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	@Override
@@ -38,7 +53,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 		else if (messageTokens[0].compareTo("create") == 0) {
 			UUID clientID = UUID.fromString(messageTokens[1]);
 			String[] pos = { messageTokens[2], messageTokens[3], messageTokens[4] };
-			sendCreateMessages(clientID, pos);
+			gameState.createGhostAvatar(clientID, Vector3f.createFrom(pos));
 		}
 		else if (messageTokens[0].compareTo("update") == 0) {
 			UUID clientID = UUID.fromString(messageTokens[1]);
@@ -48,59 +63,62 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 				messageTokens[8], messageTokens[9], messageTokens[10],
 				messageTokens[11], messageTokens[12], messageTokens[13]
 			};
-			sendUpdateMessages(clientID, pos, rot);
+			gameState.updateGhostAvatar(
+				clientID,
+				Vector3f.createFrom(pos),
+				Matrix3f.createFrom(rot)
+			);
 		}
 		else if (messageTokens[0].compareTo("bye") == 0) {
 			UUID clientID = UUID.fromString(messageTokens[1]);
+			gameState.removeGhostAvatar(clientID);
 			sendByeMessages(clientID);
 			removeClient(clientID);
 		}
 	}
 
-	private void sendByeMessages(UUID clientID) {
-		// TODO Auto-generated method stub
-		
+	public void sendPackets() throws InterruptedException {
+        while (true) {
+        	long time = System.currentTimeMillis();
+            Iterator<Entry<UUID, GhostAvatar>> it = gameState.getGhostAvatars().entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<UUID, GhostAvatar> pair = (Map.Entry<UUID, GhostAvatar>) it.next();
+                UUID id = pair.getKey();
+                GhostAvatar ga = pair.getValue();
+                // System.out.println("Updating: " + id.toString());
+        		try {
+        			String message = new String("update," + id.toString() + ",");
+        			message += ga.getPos().serialize();
+        			message += "," + ga.getRot().serialize();
+        			forwardPacketToAll(message, id);
+        		}
+        		catch (IOException e) {
+        			e.printStackTrace();
+        		}
+        	}
+            Thread.sleep(Math.max(0, (1000 / TICK_RATE) - (System.currentTimeMillis() - time)));
+        }
 	}
 
-	private void sendCreateMessages(UUID clientID, String[] pos) {
-		System.out.println("Sending Create Message");
+	private void sendByeMessages(UUID clientID) {
+		System.out.println("Sending Bye Message");
 		try {
-			String message = new String("create," + clientID.toString());
-			message += "," + pos[0];
-			message += "," + pos[1];
-			message += "," + pos[2];
+			String message = new String("bye," + clientID.toString());
 			forwardPacketToAll(message, clientID);
 		}
 		catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
-	
-	private void sendUpdateMessages(UUID clientID, String[] pos, String[] rot) {
-		try {
-			String message = new String("update," + clientID.toString());
-			message += "," + pos[0];
-			message += "," + pos[1];
-			message += "," + pos[2];
-			for (int i = 0; i < 9; i++) {
-				message += "," + rot[i];	
-			}
-			// System.out.println("Sending Update Message: " + message);
-			forwardPacketToAll(message, clientID);
-		}
-		catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-	
+
 	public void sendJoinedMessage(UUID clientID, boolean success) {
-// format: join, success or join, failure
-	try {
-		String message = new String("join,");
-		if (success) message += "success";
-		else message += "failure";
-		sendPacket(message, clientID);
-	}
+		// format: join, success or join, failure
+		try {
+			String message = new String("join,");
+			if (success) message += "success";
+			else message += "failure";
+			sendPacket(message, clientID);
+		}
 		catch (IOException e) {
 			e.printStackTrace();
 		}

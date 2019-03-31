@@ -151,6 +151,14 @@ public final class Matrix3f implements Matrix3 {
     public static Matrix3 createFrom(final float[] values) {
         return new Matrix3f(values);
     }
+    
+    public static Matrix3 createFrom(final String[] values) {
+        return new Matrix3f(
+    		Float.parseFloat(values[0]), Float.parseFloat(values[1]), Float.parseFloat(values[2]),
+			Float.parseFloat(values[3]), Float.parseFloat(values[4]), Float.parseFloat(values[5]),
+			Float.parseFloat(values[6]), Float.parseFloat(values[7]), Float.parseFloat(values[8])
+        );
+    }
 
     /**
      * Creates a new {@link Matrix3 matrix} with the specified values.
@@ -668,17 +676,14 @@ public final class Matrix3f implements Matrix3 {
     }
     
     public String serialize() {
-        // TODO: Improve formatting
         StringBuilder fmt = new StringBuilder();
         fmt.append("%f,%f,%f,%f,%f,%f,%f,%f,%f");
 
-        // @formatter:off
         return String.format(fmt.toString(),
             matrix[0][0], matrix[0][1], matrix[0][2],
             matrix[1][0], matrix[1][1], matrix[1][2],
             matrix[2][0], matrix[2][1], matrix[2][2]
         );
-        // @formatter:on
     }
 
     private static float[] getAdjugate(float m00, float m01, float m02, float m10, float m11, float m12, float m20,

@@ -85,5 +85,6 @@ public interface Vector3 extends Vector<Vector3>, ThreeDimensional, Crossable<Ve
      *         {@link Vector3 vector}.
      */
     Vector2 toVector2();
-
+    
+    String serialize();
 }

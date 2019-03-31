@@ -27,14 +27,13 @@ public class ProtocolClient extends GameConnectionClient {
 	@Override
 	protected void processPacket(Object message) {
 		String strMessage = (String) message;
-		System.out.println("Client Message: " + message);
 		String[] messageTokens = strMessage.split(",");
 		if (messageTokens.length <= 0) {
 			return;
 		}
 		
 		if (messageTokens[0].compareTo("join") == 0) {
-			// format: join, success or join, failure
+			System.out.println("Client Message: " + message);
 			if (messageTokens[1].compareTo("success") == 0) {
 				game.setConnected(true);
 				sendCreateMessage(game.getPlayerPosition());
@@ -43,7 +42,8 @@ public class ProtocolClient extends GameConnectionClient {
 				game.setConnected(false);
 			}
 		}
-		else if (messageTokens[0].compareTo("bye") == 0) { // format: bye, remoteId
+		else if (messageTokens[0].compareTo("bye") == 0) {
+			System.out.println("Client Message: " + message);
 			UUID ghostID = UUID.fromString(messageTokens[1]);
 			game.removeGhostAvatar(ghostID);
 		}
@@ -61,9 +61,9 @@ public class ProtocolClient extends GameConnectionClient {
 			// format: update, remoteId, x,y,z
 			UUID ghostID = UUID.fromString(messageTokens[1]);
 			Vector3 ghostPosition = Vector3f.createFrom(
-				Float.parseFloat(messageTokens[2]),
-				Float.parseFloat(messageTokens[3]),
-				Float.parseFloat(messageTokens[4])
+				messageTokens[2],
+				messageTokens[3],
+				messageTokens[4]
 			);
 			float[] floats = new float[9];
 			for (int i = 0; i < 9; i++){
@@ -108,6 +108,16 @@ public class ProtocolClient extends GameConnectionClient {
 			String message = new String("update," + id.toString());
 			message += "," + pos.x()+"," + pos.y() + "," + pos.z();
 			message += "," + rot.serialize();
+			sendPacket(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public void sendByeMessage() {
+		try {
+			String message = "bye," + id.toString();
 			sendPacket(message);
 		}
 		catch (IOException e) {

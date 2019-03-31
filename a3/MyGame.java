@@ -45,7 +45,7 @@ import java.io.*;
 import java.net.InetAddress;
 import java.rmi.UnknownHostException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Map.Entry;
 import java.util.UUID;
 
 import javax.script.ScriptEngine;
@@ -84,8 +84,7 @@ public class MyGame extends VariableFrameRateGame {
 	private ProtocolType serverProtocol;
 	private ProtocolClient clientProtocol;
 	private boolean isConnected = false;
-	private HashMap<UUID, GhostAvatar> ghostAvatars = new HashMap<UUID, GhostAvatar>();
-	Entity ghostE = null;
+	private GameState gameState = new GameState();
 
 	public MyGame(String serverAddr, int serverPort) {
 		super();
@@ -115,7 +114,7 @@ public class MyGame extends VariableFrameRateGame {
 		Configuration conf = getEngine().getConfiguration();
 		ImageIcon icon = new ImageIcon(conf.valueOf("assets.icons.window"));
 		rw.setIconImage(icon.getImage());
-		rw.setTitle("Dolphin Rover (Aaron Hartigan)");
+		rw.setTitle("Luigi Kart (Aaron Hartigan + Alexandru Seremet)");
 	}
 
 	@Override
@@ -141,8 +140,6 @@ public class MyGame extends VariableFrameRateGame {
 	
 	@Override
 	protected void setupScene(Engine eng, SceneManager sm) throws IOException {
-		this.ghostE = sm.createEntity("ghost", "dolphinHighPoly.obj");
-		ghostE.setPrimitive(Primitive.TRIANGLES);
 		setupNetworking();
 		executeScript(script);
 		setupHUD();
@@ -212,11 +209,26 @@ public class MyGame extends VariableFrameRateGame {
 
 	@Override
 	protected void update(Engine engine) {
-		// build and set HUD
 		float elapsTime = engine.getElapsedTimeMillis();
 		processNetworking(elapsTime);
 		im.update(elapsTime);
 		this.checkCollisions();
+		updateHUD(engine, elapsTime);
+		updateDolphinHeight();
+		long modifiedTime = script.lastModified();
+		if (modifiedTime > lastScriptModifiedTime) {
+			lastScriptModifiedTime = modifiedTime;
+			updateScriptConstants();
+		}
+		clientProtocol.updatePlayerInformation(
+			this.getPlayerPosition(),
+			this.getPlayerRotation()
+		);
+		updateGameState();
+	}
+	
+	
+	public void updateHUD(Engine engine, float elapsTime) {
 		rs = (GL4RenderSystem) engine.getRenderSystem();
 		
 		ArrayList<HUDString> stringList = rs.getHUDStringsList();
@@ -233,16 +245,6 @@ public class MyGame extends VariableFrameRateGame {
 			int BannerY = rs.getCanvas().getHeight() - 50;
 			stringList.get(2).setAll(bannerMsg, bannerX, BannerY);
 		}
-		updateDolphinHeight();
-		long modifiedTime = script.lastModified();
-		if (modifiedTime > lastScriptModifiedTime) {
-			lastScriptModifiedTime = modifiedTime;
-			updateScriptConstants();
-		}
-		clientProtocol.updatePlayerInformation(
-			this.getPlayerPosition(),
-			this.getPlayerRotation()
-		);
 	}
 
 	private void processNetworking(float elapsTime) {
@@ -983,29 +985,58 @@ public class MyGame extends VariableFrameRateGame {
 	}
 	
 	public void createGhostAvatar(UUID ghostID, Vector3 ghostPosition) {
-		SceneManager sm = getEngine().getSceneManager();
-		SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode(ghostID.toString());
-		ghostN.setLocalPosition(ghostPosition);
-		ghostN.attachObject(ghostE);
-		ghostAvatars.put(ghostID, new GhostAvatar(ghostID, ghostN, ghostE));
+		try {
+			SceneManager sm = getEngine().getSceneManager();
+			SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode(ghostID.toString());
+			ghostN.setLocalPosition(ghostPosition);
+			Entity dolphinE = sm.createEntity(ghostID.toString(), "dolphinHighPoly.obj");
+			ghostN.attachObject(dolphinE);
+			gameState.createGhostAvatar(ghostID, ghostPosition);
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 	
 	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation) {
-		SceneManager sm = getEngine().getSceneManager();
 		try {
-			SceneNode ghostN = sm.getSceneNode(ghostID.toString());
-			ghostN.setLocalPosition(ghostPosition);
-			ghostN.setLocalRotation(ghostRotation);
+			SceneManager sm = getEngine().getSceneManager();
+			if (!sm.hasSceneNode(ghostID.toString())) {
+				System.out.println("Ghost does not exist.  Creating: " + ghostID.toString());
+				createGhostAvatar(ghostID, ghostPosition);
+				return;
+			}
+			gameState.updateGhostAvatar(ghostID, ghostPosition, ghostRotation);
 		}
-		catch (RuntimeException E) {
-			createGhostAvatar(ghostID, ghostPosition);
+		catch (RuntimeException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public void updateGameState() {
+		SceneManager sm = getEngine().getSceneManager();
+		for (Entry<UUID, GhostAvatar> entry : gameState.getGhostAvatars().entrySet()) {
+			SceneNode ghostN = sm.getSceneNode(entry.getKey().toString());
+			ghostN.setLocalPosition(entry.getValue().getPos());
+			ghostN.setLocalRotation(entry.getValue().getRot());
 		}
 	}
 	
 	public void removeGhostAvatar(UUID ghostID) {
-		SceneManager sm = getEngine().getSceneManager();
-		SceneNode ghostToRemove = sm.getSceneNode(ghostID.toString());
-		sm.getRootSceneNode().detachChild(ghostToRemove);
-		ghostAvatars.remove(ghostID);
+		try {
+			SceneManager sm = getEngine().getSceneManager();
+			sm.destroySceneNode(ghostID.toString());
+			gameState.getGhostAvatars().remove(ghostID);
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
+	
+    @Override
+    public void shutdown() {
+    	super.shutdown();
+        clientProtocol.sendByeMessage();
+    }
+
 }

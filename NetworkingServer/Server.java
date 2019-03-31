@@ -2,17 +2,19 @@ package NetworkingServer;
 
 import java.io.IOException;
 
+import a3.GameState;
 import myGameEngine.Networking.GameServerUDP;
 import ray.networking.IGameConnection.ProtocolType;
 
 public class Server {
 	private GameServerUDP udpServer;
-	//private GameServerTCP tcpServer;
+	// private GameServerTCP tcpServer;
+	private GameState gameState = new GameState();
 	
 	public Server(int serverPort, String protocol) {
 		try {
 			if (protocol.toUpperCase().compareTo("UDP") == 0) {
-				udpServer = new GameServerUDP(serverPort, ProtocolType.UDP);
+				udpServer = new GameServerUDP(serverPort, ProtocolType.UDP, gameState);
 			}
 		}
 		catch (IOException e) {

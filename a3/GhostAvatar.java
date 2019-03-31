@@ -2,19 +2,18 @@ package a3;
 
 import java.util.UUID;
 
-import ray.rage.scene.Entity;
-import ray.rage.scene.SceneNode;
+import ray.rml.Matrix3;
+import ray.rml.Matrix3f;
 import ray.rml.Vector3;
+import ray.rml.Vector3f;
 
 public class GhostAvatar {
 	private UUID id;
-	private SceneNode node;
-	private Entity entity;
-	
-	public GhostAvatar(UUID id, SceneNode node, Entity entity) {
+	private Vector3 pos = Vector3f.createFrom(0f, 0f, 0f);
+	private Matrix3 rot = Matrix3f.createIdentityMatrix();
+
+	public GhostAvatar(UUID id) {
 		this.setId(id);
-		this.setNode(node);
-		this.setEntity(entity);
 	}
 
 	public UUID getId() {
@@ -25,19 +24,19 @@ public class GhostAvatar {
 		this.id = id;
 	}
 
-	public SceneNode getNode() {
-		return node;
+	public Vector3 getPos() {
+		return pos;
 	}
 
-	public void setNode(SceneNode node) {
-		this.node = node;
+	public void setPos(Vector3 pos) {
+		this.pos = pos;
 	}
 
-	public Entity getEntity() {
-		return entity;
+	public Matrix3 getRot() {
+		return rot;
 	}
 
-	public void setEntity(Entity entity) {
-		this.entity = entity;
+	public void setRot(Matrix3 rot) {
+		this.rot = rot;
 	}
 }
