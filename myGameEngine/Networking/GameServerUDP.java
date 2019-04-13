@@ -21,11 +21,8 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	public GameServerUDP(int localPort, ProtocolType protocolType, GameState gameState) throws IOException {
 		super(localPort, protocolType);
 		this.gameState = gameState;
-		try {
-			sendPackets();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+		sendPackets();
+		System.out.println("TeeHee");
 	}
 	
 	@Override
@@ -77,7 +74,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 		}
 	}
 
-	public void sendPackets() throws InterruptedException {
+	public void sendPackets() {
         while (true) {
         	long time = System.currentTimeMillis();
             Iterator<Entry<UUID, GhostAvatar>> it = gameState.getGhostAvatars().entrySet().iterator();
@@ -96,8 +93,12 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
         			e.printStackTrace();
         		}
         	}
-            Thread.sleep(Math.max(0, (1000 / TICK_RATE) - (System.currentTimeMillis() - time)));
-        }
+    		try {
+    			Thread.sleep(Math.max(0, (1000 / TICK_RATE) - (System.currentTimeMillis() - time)));
+    		} catch (InterruptedException e) {
+    			e.printStackTrace();
+    		}
+    	}
 	}
 
 	private void sendByeMessages(UUID clientID) {

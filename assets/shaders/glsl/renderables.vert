@@ -23,7 +23,6 @@ uniform struct matrix_t {
 	mat4 lightSpaceMatrix;
 } matrix;
 
-
 void main()
 {
     vec4 view_vertex        = matrix.view * matrix.model * vec4(vertex_position, 1);

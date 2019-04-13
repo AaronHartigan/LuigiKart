@@ -98,8 +98,8 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
     private AmbientLight                ambientLight;
     
 
-    private final int                   SHADOW_WIDTH       = 4096;
-    private final int                   SHADOW_HEIGHT      = 4096;
+    private final int                   SHADOW_WIDTH       = 8192;
+    private final int                   SHADOW_HEIGHT      = 8192;
     private boolean RENDER_DEPTH = true;
     private boolean RENDER_SCENE = true;
     private boolean RENDER_DEBUG = false;
@@ -529,10 +529,10 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
         GL4 gl = (GL4) glad.getGL();
         gl.glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 
-        Vector3 lightOffset = Vector3f.createFrom(40f, 21.84f, 10f); // -2.0f, 4.0f, -1.0f
-        final float BOX_SIZE = 15f;
-        final float CLIP_SIZE = 100f;
-        Matrix4 lightProjection = Matrix4f.createOrthographicMatrix(-BOX_SIZE, BOX_SIZE, -BOX_SIZE, BOX_SIZE, 0.1f, CLIP_SIZE);
+        Vector3 lightOffset = Vector3f.createFrom(4f, 2.84f, 1f); // -2.0f, 4.0f, -1.0f
+        final float BOX_SIZE = 40f;
+        final float CLIP_SIZE = 40f;
+        Matrix4 lightProjection = Matrix4f.createOrthographicMatrix(-BOX_SIZE, BOX_SIZE, -BOX_SIZE / 2, BOX_SIZE / 2, -CLIP_SIZE, CLIP_SIZE);
         Matrix4 orthoProjection = Matrix4f.createOrthographicMatrix(-boxSize, boxSize, -boxSize, boxSize, -clipSize, clipSize);
         Vector3 lightPos = posVector.add(lightOffset);
         Vector3 up = Vector3f.createFrom(0f, 1f, 0f);
@@ -561,7 +561,7 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
 	            	continue;
 	            }
 	            if (!(program.getType() == Type.TESSELLATION)) {
-		            program = r.getDepthShaderProgram();
+		            program = getGpuShaderProgram(GpuShaderProgram.Type.DEPTH);
 		            if (program == null) {
 		                logger.severe(Renderable.class.getSimpleName() + " skipped. No "
 		                        + GpuShaderProgram.class.getSimpleName() + " set");

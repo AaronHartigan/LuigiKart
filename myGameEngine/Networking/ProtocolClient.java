@@ -2,8 +2,6 @@ package myGameEngine.Networking;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.UUID;
 
 import a3.MyGame;
@@ -27,6 +25,9 @@ public class ProtocolClient extends GameConnectionClient {
 	@Override
 	protected void processPacket(Object message) {
 		String strMessage = (String) message;
+		if (strMessage == null) {
+			return;
+		}
 		String[] messageTokens = strMessage.split(",");
 		if (messageTokens.length <= 0) {
 			return;

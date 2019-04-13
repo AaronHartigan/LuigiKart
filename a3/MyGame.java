@@ -9,6 +9,7 @@ import net.java.games.input.Controller;
 import ray.input.GenericInputManager;
 import ray.input.InputManager;
 import ray.networking.IGameConnection.ProtocolType;
+import ray.physics.PhysicsObject;
 import ray.rage.Engine;
 import ray.rage.asset.material.Material;
 import ray.rage.asset.texture.Texture;
@@ -144,6 +145,7 @@ public class MyGame extends VariableFrameRateGame {
 		executeScript(script);
 		setupHUD();
 		createDolphinWithCamera(sm);
+		createBanana(sm);
 		for (Planet p : this.planets) {
 			createPlanet(sm, p);
 		}
@@ -262,6 +264,13 @@ public class MyGame extends VariableFrameRateGame {
 		dolphin.setLocalPosition(wp.x(), newHeight, wp.z());
 		
 	}
+	
+	protected void createBanana(SceneManager sm) throws IOException {
+		Entity bananaE = sm.createEntity("banana", "banana.obj");
+		SceneNode bananaN = sm.getRootSceneNode().createChildSceneNode(bananaE.getName() + "Node");
+		bananaN.attachObject(bananaE);
+		bananaN.scale(0.3f, 0.3f, 0.3f);
+	}
 
 	protected void createDolphinWithCamera(SceneManager sm) throws IOException {
 		Entity dolphinE = sm.createEntity("dolphin", "dolphinHighPoly.obj");
@@ -271,6 +280,7 @@ public class MyGame extends VariableFrameRateGame {
 		//dolphinN.moveBackward(2.0f);
 		//dolphinN.moveUp(0.3f);
 		dolphinN.attachObject(dolphinE);
+		//dolphinN.setPhysicsObject(new PhysicsObject());
 
 		SceneNode dolphinCamera = dolphinN.createChildSceneNode(dolphinN.getName() + "Camera");
 
@@ -423,12 +433,12 @@ public class MyGame extends VariableFrameRateGame {
 		
 
 		float[] vertices = new float[] {
-	       -250f, -0.1f,  250f,
-	        250f, -0.1f,  250f,
-	       -250f, -0.1f, -250f,
-	       -250f, -0.1f, -250f,
-	        250f, -0.1f,  250f,
-	        250f, -0.1f, -250f,
+	       -250f, 0.0f,  250f,
+	        250f, 0.0f,  250f,
+	       -250f, 0.0f, -250f,
+	       -250f, 0.0f, -250f,
+	        250f, 0.0f,  250f,
+	        250f, 0.0f, -250f,
 		};
 		
 		float[] texcoords = new float[vertices.length];
@@ -1036,7 +1046,9 @@ public class MyGame extends VariableFrameRateGame {
     @Override
     public void shutdown() {
     	super.shutdown();
-        clientProtocol.sendByeMessage();
+        if (clientProtocol != null) {
+        	clientProtocol.sendByeMessage();
+        }
     }
 
 }
