@@ -10,7 +10,7 @@ public class MoveNodeForwardAction extends AbstractInputAction
 	private SceneNode n;
 	private MyGame g;
 
-	public MoveNodeForwardAction(SceneNode n,MyGame g) { 
+	public MoveNodeForwardAction(SceneNode n, MyGame g) { 
 		this.n = n;
 		this.g = g;
 	}

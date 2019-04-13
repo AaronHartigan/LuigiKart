@@ -85,6 +85,18 @@ public class MyGame extends VariableFrameRateGame {
 	private ProtocolType serverProtocol;
 	private ProtocolClient clientProtocol;
 	private boolean isConnected = false;
+	private boolean isOnGround = true;
+	private float gravity = -10f;
+	private boolean isAccelerating = false;
+	private boolean isDeccelerating = false;
+	private boolean isBraking = false;
+	private float accelerationRate = 10f;
+	private float deccelerationRate = -15f;
+	private float MAX_SPEED = 20f;
+	private float MAX_REVERSE_SPEED = -5f;
+	private float roadFriction = 5f;
+	private float vForward = 0f; // forward velicty
+	private float vUp = 0f; // upward velocity
 	private GameState gameState = new GameState();
 
 	public MyGame(String serverAddr, int serverPort) {
@@ -213,10 +225,12 @@ public class MyGame extends VariableFrameRateGame {
 	protected void update(Engine engine) {
 		float elapsTime = engine.getElapsedTimeMillis();
 		processNetworking(elapsTime);
+		setAccelerating(false);
+		setDeccelerating(false);
 		im.update(elapsTime);
 		this.checkCollisions();
 		updateHUD(engine, elapsTime);
-		updateDolphinHeight();
+		updatePlayerPhysics(elapsTime);
 		long modifiedTime = script.lastModified();
 		if (modifiedTime > lastScriptModifiedTime) {
 			lastScriptModifiedTime = modifiedTime;
@@ -247,6 +261,7 @@ public class MyGame extends VariableFrameRateGame {
 			int BannerY = rs.getCanvas().getHeight() - 50;
 			stringList.get(2).setAll(bannerMsg, bannerX, BannerY);
 		}
+		stringList.get(1).setAll("" + Math.round(vForward * 3) + " MPH", 0, rs.getCanvas().getHeight() - 25);
 	}
 
 	private void processNetworking(float elapsTime) {
@@ -255,14 +270,49 @@ public class MyGame extends VariableFrameRateGame {
 		}
 	}
 
-	protected void updateDolphinHeight() {
+	protected void updatePlayerPhysics(float elapsedMS) {
+		float elapsedSec = elapsedMS / 1000;
 		SceneNode dolphin = getEngine().getSceneManager().getSceneNode("dolphinNode");
-		Vector3 wp = dolphin.getWorldPosition();
+		Vector3 lp = dolphin.getLocalPosition();
+		Vector3 fv = dolphin.getLocalForwardAxis();
 		Tessellation plane = getEngine().getSceneManager().getTessellation("plane");
+
+		if (isOnGround) {
+			if (isAccelerating()) {
+				vForward += accelerationRate * elapsedSec;
+			}
+			if (isDeccelerating()) {
+				vForward += deccelerationRate * elapsedSec;
+			}
+			float frictionDirection = vForward > 0 ? -1f : 1f;
+			vForward += roadFriction * frictionDirection * elapsedSec;
+			vForward = Math.max(vForward, MAX_REVERSE_SPEED);
+			vForward = Math.min(vForward, MAX_SPEED);
+		}
+		if (!isAccelerating() && !isDeccelerating() && Math.abs(vForward) < 0.2f) {
+			// Clamp to prevent small movement when player should be stationary
+			vForward = 0f;
+		}
+		fv = fv.mult(vForward * elapsedSec);
+		dolphin.setLocalPosition(lp.add(fv));
+		lp = dolphin.getLocalPosition();
 		
-		float newHeight = plane.getWorldHeight(wp.x(), wp.z()) + 1.3f;
-		dolphin.setLocalPosition(wp.x(), newHeight, wp.z());
-		
+		float OFFSET = 1.3f;
+		float newHeight = lp.y();
+		float groundHeight = plane.getWorldHeight(lp.x(), lp.z()) + OFFSET;
+		// If falling, update newHeight with gravity
+		if (newHeight > groundHeight) {
+			isOnGround = false;
+			vUp += gravity * elapsedSec;
+			newHeight += vUp * elapsedSec;
+		}
+		// Must check if gravity has put us below ground (or going uphill)
+		if (newHeight < groundHeight) {
+			isOnGround = true;
+			vUp = 0;
+			newHeight = groundHeight;
+		}
+		dolphin.setLocalPosition(lp.x(), newHeight, lp.z());
 	}
 	
 	protected void createBanana(SceneManager sm) throws IOException {
@@ -323,7 +373,7 @@ public class MyGame extends VariableFrameRateGame {
 				im.associateAction(
 					c,
 					Component.Identifier.Key.W,
-					new MoveNodeForwardAction(dolphin, this),
+					new StartAccelerationAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 				im.associateAction(
@@ -335,7 +385,7 @@ public class MyGame extends VariableFrameRateGame {
 				im.associateAction(
 					c,
 					Component.Identifier.Key.S,
-					new MoveNodeBackwardAction(dolphin, this),
+					new StartDeccelerationAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 				im.associateAction(
@@ -1050,5 +1100,29 @@ public class MyGame extends VariableFrameRateGame {
         	clientProtocol.sendByeMessage();
         }
     }
+
+	public boolean isAccelerating() {
+		return isAccelerating;
+	}
+
+	public void setAccelerating(boolean isAccelerating) {
+		this.isAccelerating = isAccelerating;
+	}
+
+	public boolean isBraking() {
+		return isBraking;
+	}
+
+	public void setBraking(boolean isBraking) {
+		this.isBraking = isBraking;
+	}
+
+	public boolean isDeccelerating() {
+		return isDeccelerating;
+	}
+
+	public void setDeccelerating(boolean isDeccelerating) {
+		this.isDeccelerating = isDeccelerating;
+	}
 
 }
