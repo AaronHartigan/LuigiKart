@@ -532,7 +532,7 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
         Vector3 lightOffset = Vector3f.createFrom(4f, 2.84f, 1f); // -2.0f, 4.0f, -1.0f
         final float BOX_SIZE = 40f;
         final float CLIP_SIZE = 40f;
-        Matrix4 lightProjection = Matrix4f.createOrthographicMatrix(-BOX_SIZE, BOX_SIZE, -BOX_SIZE / 2, BOX_SIZE / 2, -CLIP_SIZE, CLIP_SIZE);
+        Matrix4 lightProjection = Matrix4f.createOrthographicMatrix(-BOX_SIZE, BOX_SIZE, -BOX_SIZE, BOX_SIZE, -CLIP_SIZE, CLIP_SIZE);
         Matrix4 orthoProjection = Matrix4f.createOrthographicMatrix(-boxSize, boxSize, -boxSize, boxSize, -clipSize, clipSize);
         Vector3 lightPos = posVector.add(lightOffset);
         Vector3 up = Vector3f.createFrom(0f, 1f, 0f);
@@ -569,7 +569,6 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
 		            }
 		            final GpuShaderProgram.Context ctx = program.createContext();
 		            ctx.setRenderable(r);
-		            //ctx.setViewMatrix(viewMatrix);
 		            ctx.setLightSpaceMatrix(lightSpaceMatrix);
 		
 		            program.bind();
@@ -582,13 +581,8 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
 	            	setRenderStates(r);
 		            final GpuShaderProgram.Context ctx = program.createContext();
 		            ctx.setRenderable(r);
-		            ctx.setViewMatrix(viewMatrix);
-		            if (perspective) {
-			            ctx.setProjectionMatrix(projMatrix);
-		            }
-		            else {
-			            ctx.setProjectionMatrix(orthoProjection);
-		            }
+		            ctx.setViewMatrix(lightView);
+		            ctx.setProjectionMatrix(lightProjection);
 		            ctx.setLightsList(lightsList);
 		            ctx.setAmbientLight(ambientLight);
 		            ctx.setLightSpaceMatrix(lightSpaceMatrix);

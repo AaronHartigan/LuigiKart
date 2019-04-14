@@ -65,17 +65,6 @@ public class MyGame extends VariableFrameRateGame {
 	private int bannerTime = 2000;
 	private float MOVE_SPEED = 0.01f;
 	private float ROTATE_SPEED = 0.1f;
-	private Planet[] planets = new Planet[] {
-		new Planet("sun", 80f, 100f, 10f, 11.2f, 0.0004f),
-		new Planet("Mercury", 50f, 0.7467f, 50f, 0.383f, 0.00017f),
-		new Planet("Venus", 38f, 1.85f, -30f, 0.949f, -0.00004f),
-		new Planet("Earth", 20f, 1.9496f, 10f, 1.0f, .01f),
-		new Planet("Mars", -2f, 1.0372f, 40f, 0.532f, 0.0097f),
-		new Planet("Jupiter", -30f, 11.308f, -40f, 5.8f, .024f),
-		new Planet("Saturn", -40f, 8.68f, 45f, 4.45f, .022f),
-		new Planet("Uranus", -20f, 3.919f, 5f, 2.01f, -.0138f),
-		new Planet("Neptune", 15f, 3.665f, -30f, 1.88f, .0148f)
-	};
 	private ScriptEngine jsEngine = null;
 	private File script = new File("script.js");
 	private long lastScriptModifiedTime = 0;
@@ -158,23 +147,13 @@ public class MyGame extends VariableFrameRateGame {
 		setupHUD();
 		createDolphinWithCamera(sm);
 		createBanana(sm);
-		for (Planet p : this.planets) {
-			createPlanet(sm, p);
-		}
 		createGroundPlane(sm);
 
 		setupInputs();
 		createSkyBox(eng, sm);
-		// Render manuel object twice so it can be seen from both sides
-		createManualObject(eng, sm, false);
-		createManualObject(eng, sm, true);
 
 		setupAmbientLight(sm);
-		setupPointLight(sm, getEngine().getSceneManager().getSceneNode("sunNode"));
-		Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
-		mat.setEmissive(Color.WHITE);
-		Entity sunE = getEngine().getSceneManager().getEntity("sun");
-		sunE.setMaterial(mat);
+		setupPointLight(sm);
 	}
 
 	private void setupNetworking() {
@@ -228,7 +207,6 @@ public class MyGame extends VariableFrameRateGame {
 		setAccelerating(false);
 		setDeccelerating(false);
 		im.update(elapsTime);
-		this.checkCollisions();
 		updateHUD(engine, elapsTime);
 		updatePlayerPhysics(elapsTime);
 		long modifiedTime = script.lastModified();
@@ -284,20 +262,23 @@ public class MyGame extends VariableFrameRateGame {
 			if (isDeccelerating()) {
 				vForward += deccelerationRate * elapsedSec;
 			}
-			float frictionDirection = vForward > 0 ? -1f : 1f;
-			vForward += roadFriction * frictionDirection * elapsedSec;
-			vForward = Math.max(vForward, MAX_REVERSE_SPEED);
-			vForward = Math.min(vForward, MAX_SPEED);
+			if (!isAccelerating() && !isDeccelerating() && Math.abs(vForward) < 0.1f) {
+				// Clamp to prevent small movement when player should be stationary
+				vForward = 0f;
+			}
+			else {
+				float frictionDirection = vForward > 0f ? -1f : 1f;
+				vForward += roadFriction * frictionDirection * elapsedSec;
+				vForward = Math.max(vForward, MAX_REVERSE_SPEED);
+				vForward = Math.min(vForward, MAX_SPEED);
+			}
 		}
-		if (!isAccelerating() && !isDeccelerating() && Math.abs(vForward) < 0.2f) {
-			// Clamp to prevent small movement when player should be stationary
-			vForward = 0f;
-		}
+
 		fv = fv.mult(vForward * elapsedSec);
 		dolphin.setLocalPosition(lp.add(fv));
 		lp = dolphin.getLocalPosition();
 		
-		float OFFSET = 1.3f;
+		float OFFSET = 0.3f;
 		float newHeight = lp.y();
 		float groundHeight = plane.getWorldHeight(lp.x(), lp.z()) + OFFSET;
 		// If falling, update newHeight with gravity
@@ -348,10 +329,21 @@ public class MyGame extends VariableFrameRateGame {
 	}
 	
 	protected void setupAmbientLight(SceneManager sm) {
-		sm.getAmbientLight().setIntensity(new Color(0.2f, 0.2f, 0.2f));
+		sm.getAmbientLight().setIntensity(new Color(0.3f, 0.3f, 0.3f));
 	}
 	
-	protected void setupPointLight(SceneManager sm, SceneNode node) {
+	protected void setupPointLight(SceneManager sm) throws IOException {
+		Entity lightE = sm.createEntity("sun", "cube.obj");
+		lightE.setPrimitive(Primitive.TRIANGLES);
+
+		SceneNode lightN = sm.getRootSceneNode().createChildSceneNode("lightNode");
+		lightN.translate(80f, 100f, 10f);
+		lightN.scale(11.2f, 11.2f, 11.2f);
+		Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
+		mat.setEmissive(Color.WHITE);
+		lightE.setMaterial(mat);
+		lightN.attachObject(lightE);
+		
 		Light sunlight = sm.createLight("sunLight", Light.Type.POINT);
 		sunlight.setAmbient(new Color(.15f, .15f, .15f));
 		sunlight.setDiffuse(new Color(1f, 1f, .8f));
@@ -361,7 +353,7 @@ public class MyGame extends VariableFrameRateGame {
 		sunlight.setLinearAttenuation(0.0000001f);
 		sunlight.setQuadraticAttenuation(0f);
 		sunlight.setFalloffExponent(0f);
-		node.attachObject(sunlight);
+		lightN.attachObject(sunlight);
 	}
 	
 	// Setup all inputs (keyboard and controller) needed for the game
@@ -447,26 +439,12 @@ public class MyGame extends VariableFrameRateGame {
 			}
 		}
 	}
-
-	// Create and add planet to scene
-	protected void createPlanet(SceneManager sm, Planet p) throws IOException {
-		Entity planetE = sm.createEntity(p.name(), p.name() + ".obj");
-		planetE.setPrimitive(Primitive.TRIANGLES);
-		
-		SceneNode planetN = sm.getRootSceneNode().createChildSceneNode(planetE.getName() + "Node");
-		planetN.moveForward(p.z());
-		planetN.moveUp(p.y());
-		planetN.moveRight(p.x());
-		planetN.scale(p.scale(), p.scale(), p.scale());
-		planetN.attachObject(planetE);
-	}
 	
 	protected void createGroundPlane(SceneManager sm) throws IOException {
 		Tessellation plane = sm.createTessellation("plane");
 		SceneNode planeN = sm.getRootSceneNode().createChildSceneNode("planeNode");
 		planeN.attachObject(plane);
 		planeN.scale(100, 1, 100);
-		planeN.translate(0f, -1f, 0f);
 
 		plane.getTextureState().setWrapMode(WrapMode.REPEAT_MIRRORED);
 		plane.setTexture(getEngine(), "hexagons.jpeg");
@@ -475,115 +453,6 @@ public class MyGame extends VariableFrameRateGame {
 		plane.setHeightMap(getEngine(), "height_map.png");
 		plane.setQuality(7);
 		plane.setMultiplier(4);
-		
-		ManualObject ground = sm.createManualObject("ground");
-		ground.createManualSection("GroundSection");
-		ground.setGpuShaderProgram(sm.getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.RENDERING));
-		ground.setDepthShaderProgram(sm.getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.DEPTH));
-		
-
-		float[] vertices = new float[] {
-	       -250f, 0.0f,  250f,
-	        250f, 0.0f,  250f,
-	       -250f, 0.0f, -250f,
-	       -250f, 0.0f, -250f,
-	        250f, 0.0f,  250f,
-	        250f, 0.0f, -250f,
-		};
-		
-		float[] texcoords = new float[vertices.length];
-		for (int i = 0; i < vertices.length / 18; i++) {
-			texcoords[i * 12    ] = 1.0f;
-			texcoords[i * 12 + 1] = 0.0f;
-			texcoords[i * 12 + 2] = 0.0f;
-			texcoords[i * 12 + 3] = 1.0f;
-			texcoords[i * 12 + 4] = 0.0f;
-			texcoords[i * 12 + 5] = 0.0f;
-			texcoords[i * 12 + 6] = 1.0f;
-			texcoords[i * 12 + 7] = 0.0f;
-			texcoords[i * 12 + 8] = 1.0f;
-			texcoords[i * 12 + 9] = 1.0f;
-			texcoords[i * 12 +10] = 0.0f;
-			texcoords[i * 12 +11] = 1.0f;
-		}
-
-		// Since the shape is a 2D shape, all normals point straight up
-		float[] normals = new float[vertices.length];
-		for (int i = 0; i < vertices.length / 3; i++) {
-			normals[i * 3] = 0.0f;
-			normals[i * 3 + 1] = 1.0f;
-			normals[i * 3 + 2] = 0.0f;
-		}
-
-		int[] indices = new int[vertices.length];
-		for (int i = 0; i < vertices.length; i++) {
-			indices[i] = i;
-		}
-
-		ground.setVertexBuffer(BufferUtil.directFloatBuffer(vertices));
-		ground.setNormalsBuffer(BufferUtil.directFloatBuffer(normals));
-		ground.setTextureCoordBuffer(BufferUtil.directFloatBuffer(texcoords));
-		ground.setIndexBuffer(BufferUtil.directIntBuffer(indices));
-		
-		Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
-		TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		tstate.setTexture(sm.getTextureManager().getAssetByPath("default.png"));
-
-		FrontFaceState faceState = (FrontFaceState) sm.getRenderSystem().createRenderState(RenderState.Type.FRONT_FACE);
-		ZBufferState zstate = (ZBufferState) sm.getRenderSystem().createRenderState(Type.ZBUFFER);
-		
-		ground.setDataSource(DataSource.INDEX_BUFFER);
-		ground.setRenderState(faceState);
-		ground.setRenderState(tstate);
-		ground.setRenderState(zstate);
-		ground.setMaterial(mat);
-
-		SceneNode groundN = sm.getRootSceneNode().createChildSceneNode("groundNode");
-		groundN.attachObject(ground);
-	}
-	
-	// Checks and handles collision between the dolphin and the planets
-	protected void checkCollisions() {
-		SceneNode dolphin = getEngine().getSceneManager().getSceneNode("dolphinNode");
-		for (Planet p : this.planets) {
-			if (!isCloseEnough(p, dolphin.getWorldPosition())) {
-				continue;
-			}
-			else if (!p.beenVisited()) {
-				if (p.name() == "sun") {
-					this.setBannerMsg("The sun is not a planet.");
-					continue;
-				}
-
-				RotationController rc = new RotationController(Vector3f.createUnitVectorY(), 0.1f);
-				rc.addNode(getEngine().getSceneManager().getSceneNode(p.name() + "Node"));
-				getEngine().getSceneManager().addController(rc);
-
-				BungeeController bc = new BungeeController();
-				bc.addNode(getEngine().getSceneManager().getSceneNode(p.name() + "Node"));
-				getEngine().getSceneManager().addController(bc);
-
-				this.score++;
-				p.setBeenVisited(true);
-				if (this.score == 8) {
-					String endGame = "You have visited ALL of the planets! ";
-					this.setBannerMsg(endGame);
-				}
-				else {
-					this.setBannerMsg("You have visited " + p.name() + "!");
-				}
-			}
-			else if (bannerTime < 0 && p.beenVisited()) {
-				this.setBannerMsg("You have already visited " + p.name() + ".");
-			}
-		}
-	}
-	
-	// Check if player is close to a planet
-	protected boolean isCloseEnough(Planet p, Vector3 po) {
-		// 1.949634 is the max radius of the planet mesh
-		double dist = calcDistance(p.x(), p.y(), p.z(), po.x(), po.y(), po.z());
-		return dist < (p.scale() * 1.949634 + 0.5f);
 	}
 	
 	protected double calcDistance(float x1, float y1, float z1, float x2, float y2, float z2) {
@@ -591,383 +460,6 @@ public class MyGame extends VariableFrameRateGame {
 		float dy = (y1 - y2);
 		float dz = (z1 - z2);
 		return Math.sqrt(dx * dx + dy * dy + dz * dz);
-	}
-	
-	protected class Planet {
-		private String name;
-		private float x, y, z;
-		private float scale;
-		private float rotationSpeed;
-		private boolean beenVisited = false;
- 
-		public Planet(String name, float x, float y, float z, float scale, float rotationSpeed) {
-			this.name = name;
-			this.x = x;
-			this.y = y;
-			this.z = z;
-			this.scale = scale;
-			this.rotationSpeed = rotationSpeed;
-		}
-		
-		public String name( ) {
-			return this.name;
-		}
-		
-		public float x( ) {
-			return this.x;
-		}
-		
-		public float y( ) {
-			return this.y;
-		}
-		
-		public float z( ) {
-			return this.z;
-		}
-		
-		public float scale( ) {
-			return this.scale;
-		}
-		
-		public float rotationSpeed( ) {
-			return this.rotationSpeed;
-		}
-		
-		public Boolean beenVisited() {
-			return this.beenVisited;
-		}
-		
-		public void setBeenVisited(boolean b) {
-			this.beenVisited = b;
-		}
-	}
-	
-	protected SceneNode createManualObject(Engine eng, SceneManager sm, Boolean rev) throws IOException {
-		String nameAppend = rev ? "Reverse" : "";
-		ManualObject rings = sm.createManualObject("Rings" + nameAppend);
-		rings.createManualSection("RingsSection" + nameAppend);
-		rings.setGpuShaderProgram(sm.getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.RENDERING));
-		rings.setDepthShaderProgram(sm.getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.DEPTH));
-		// These points are generated by a script I wrote, not Blender
-		float[] vertices = new float[] {
-			0.000000f,  0.0f, 1.000000f, 0.024534f,  0.0f, 0.499398f, 0.000000f,  0.0f, 0.500000f,
-			0.000000f,  0.0f, 1.000000f, 0.049068f,  0.0f, 0.998795f, 0.024534f,  0.0f, 0.499398f,
-			0.049068f,  0.0f, 0.998795f, 0.049009f,  0.0f, 0.497592f, 0.024534f,  0.0f, 0.499398f,
-			0.049068f,  0.0f, 0.998795f, 0.098017f,  0.0f, 0.995185f, 0.049009f,  0.0f, 0.497592f,
-			0.098017f,  0.0f, 0.995185f, 0.073365f,  0.0f, 0.494588f, 0.049009f,  0.0f, 0.497592f,
-			0.098017f,  0.0f, 0.995185f, 0.146730f,  0.0f, 0.989177f, 0.073365f,  0.0f, 0.494588f,
-			0.146730f,  0.0f, 0.989177f, 0.097545f,  0.0f, 0.490393f, 0.073365f,  0.0f, 0.494588f,
-			0.146730f,  0.0f, 0.989177f, 0.195090f,  0.0f, 0.980785f, 0.097545f,  0.0f, 0.490393f,
-			0.195090f,  0.0f, 0.980785f, 0.121490f,  0.0f, 0.485016f, 0.097545f,  0.0f, 0.490393f,
-			0.195090f,  0.0f, 0.980785f, 0.242980f,  0.0f, 0.970031f, 0.121490f,  0.0f, 0.485016f,
-			0.242980f,  0.0f, 0.970031f, 0.145142f,  0.0f, 0.478470f, 0.121490f,  0.0f, 0.485016f,
-			0.242980f,  0.0f, 0.970031f, 0.290285f,  0.0f, 0.956940f, 0.145142f,  0.0f, 0.478470f,
-			0.290285f,  0.0f, 0.956940f, 0.168445f,  0.0f, 0.470772f, 0.145142f,  0.0f, 0.478470f,
-			0.290285f,  0.0f, 0.956940f, 0.336890f,  0.0f, 0.941544f, 0.168445f,  0.0f, 0.470772f,
-			0.336890f,  0.0f, 0.941544f, 0.191342f,  0.0f, 0.461940f, 0.168445f,  0.0f, 0.470772f,
-			0.336890f,  0.0f, 0.941544f, 0.382683f,  0.0f, 0.923880f, 0.191342f,  0.0f, 0.461940f,
-			0.382683f,  0.0f, 0.923880f, 0.213778f,  0.0f, 0.451995f, 0.191342f,  0.0f, 0.461940f,
-			0.382683f,  0.0f, 0.923880f, 0.427555f,  0.0f, 0.903989f, 0.213778f,  0.0f, 0.451995f,
-			0.427555f,  0.0f, 0.903989f, 0.235698f,  0.0f, 0.440961f, 0.213778f,  0.0f, 0.451995f,
-			0.427555f,  0.0f, 0.903989f, 0.471397f,  0.0f, 0.881921f, 0.235698f,  0.0f, 0.440961f,
-			0.471397f,  0.0f, 0.881921f, 0.257051f,  0.0f, 0.428864f, 0.235698f,  0.0f, 0.440961f,
-			0.471397f,  0.0f, 0.881921f, 0.514103f,  0.0f, 0.857729f, 0.257051f,  0.0f, 0.428864f,
-			0.514103f,  0.0f, 0.857729f, 0.277785f,  0.0f, 0.415735f, 0.257051f,  0.0f, 0.428864f,
-			0.514103f,  0.0f, 0.857729f, 0.555570f,  0.0f, 0.831470f, 0.277785f,  0.0f, 0.415735f,
-			0.555570f,  0.0f, 0.831470f, 0.297850f,  0.0f, 0.401604f, 0.277785f,  0.0f, 0.415735f,
-			0.555570f,  0.0f, 0.831470f, 0.595699f,  0.0f, 0.803208f, 0.297850f,  0.0f, 0.401604f,
-			0.595699f,  0.0f, 0.803208f, 0.317197f,  0.0f, 0.386505f, 0.297850f,  0.0f, 0.401604f,
-			0.595699f,  0.0f, 0.803208f, 0.634393f,  0.0f, 0.773010f, 0.317197f,  0.0f, 0.386505f,
-			0.634393f,  0.0f, 0.773010f, 0.335779f,  0.0f, 0.370476f, 0.317197f,  0.0f, 0.386505f,
-			0.634393f,  0.0f, 0.773010f, 0.671559f,  0.0f, 0.740951f, 0.335779f,  0.0f, 0.370476f,
-			0.671559f,  0.0f, 0.740951f, 0.353553f,  0.0f, 0.353553f, 0.335779f,  0.0f, 0.370476f,
-			0.671559f,  0.0f, 0.740951f, 0.707107f,  0.0f, 0.707107f, 0.353553f,  0.0f, 0.353553f,
-			0.707107f,  0.0f, 0.707107f, 0.370476f,  0.0f, 0.335779f, 0.353553f,  0.0f, 0.353553f,
-			0.707107f,  0.0f, 0.707107f, 0.740951f,  0.0f, 0.671559f, 0.370476f,  0.0f, 0.335779f,
-			0.740951f,  0.0f, 0.671559f, 0.386505f,  0.0f, 0.317197f, 0.370476f,  0.0f, 0.335779f,
-			0.740951f,  0.0f, 0.671559f, 0.773010f,  0.0f, 0.634393f, 0.386505f,  0.0f, 0.317197f,
-			0.773010f,  0.0f, 0.634393f, 0.401604f,  0.0f, 0.297850f, 0.386505f,  0.0f, 0.317197f,
-			0.773010f,  0.0f, 0.634393f, 0.803208f,  0.0f, 0.595699f, 0.401604f,  0.0f, 0.297850f,
-			0.803208f,  0.0f, 0.595699f, 0.415735f,  0.0f, 0.277785f, 0.401604f,  0.0f, 0.297850f,
-			0.803208f,  0.0f, 0.595699f, 0.831470f,  0.0f, 0.555570f, 0.415735f,  0.0f, 0.277785f,
-			0.831470f,  0.0f, 0.555570f, 0.428864f,  0.0f, 0.257051f, 0.415735f,  0.0f, 0.277785f,
-			0.831470f,  0.0f, 0.555570f, 0.857729f,  0.0f, 0.514103f, 0.428864f,  0.0f, 0.257051f,
-			0.857729f,  0.0f, 0.514103f, 0.440961f,  0.0f, 0.235698f, 0.428864f,  0.0f, 0.257051f,
-			0.857729f,  0.0f, 0.514103f, 0.881921f,  0.0f, 0.471397f, 0.440961f,  0.0f, 0.235698f,
-			0.881921f,  0.0f, 0.471397f, 0.451995f,  0.0f, 0.213778f, 0.440961f,  0.0f, 0.235698f,
-			0.881921f,  0.0f, 0.471397f, 0.903989f,  0.0f, 0.427555f, 0.451995f,  0.0f, 0.213778f,
-			0.903989f,  0.0f, 0.427555f, 0.461940f,  0.0f, 0.191342f, 0.451995f,  0.0f, 0.213778f,
-			0.903989f,  0.0f, 0.427555f, 0.923880f,  0.0f, 0.382683f, 0.461940f,  0.0f, 0.191342f,
-			0.923880f,  0.0f, 0.382683f, 0.470772f,  0.0f, 0.168445f, 0.461940f,  0.0f, 0.191342f,
-			0.923880f,  0.0f, 0.382683f, 0.941544f,  0.0f, 0.336890f, 0.470772f,  0.0f, 0.168445f,
-			0.941544f,  0.0f, 0.336890f, 0.478470f,  0.0f, 0.145142f, 0.470772f,  0.0f, 0.168445f,
-			0.941544f,  0.0f, 0.336890f, 0.956940f,  0.0f, 0.290285f, 0.478470f,  0.0f, 0.145142f,
-			0.956940f,  0.0f, 0.290285f, 0.485016f,  0.0f, 0.121490f, 0.478470f,  0.0f, 0.145142f,
-			0.956940f,  0.0f, 0.290285f, 0.970031f,  0.0f, 0.242980f, 0.485016f,  0.0f, 0.121490f,
-			0.970031f,  0.0f, 0.242980f, 0.490393f,  0.0f, 0.097545f, 0.485016f,  0.0f, 0.121490f,
-			0.970031f,  0.0f, 0.242980f, 0.980785f,  0.0f, 0.195090f, 0.490393f,  0.0f, 0.097545f,
-			0.980785f,  0.0f, 0.195090f, 0.494588f,  0.0f, 0.073365f, 0.490393f,  0.0f, 0.097545f,
-			0.980785f,  0.0f, 0.195090f, 0.989177f,  0.0f, 0.146730f, 0.494588f,  0.0f, 0.073365f,
-			0.989177f,  0.0f, 0.146730f, 0.497592f,  0.0f, 0.049009f, 0.494588f,  0.0f, 0.073365f,
-			0.989177f,  0.0f, 0.146730f, 0.995185f,  0.0f, 0.098017f, 0.497592f,  0.0f, 0.049009f,
-			0.995185f,  0.0f, 0.098017f, 0.499398f,  0.0f, 0.024534f, 0.497592f,  0.0f, 0.049009f,
-			0.995185f,  0.0f, 0.098017f, 0.998795f,  0.0f, 0.049068f, 0.499398f,  0.0f, 0.024534f,
-			0.998795f,  0.0f, 0.049068f, 0.500000f,  0.0f, -0.000000f, 0.499398f,  0.0f, 0.024534f,
-			0.998795f,  0.0f, 0.049068f, 1.000000f,  0.0f, -0.000000f, 0.500000f,  0.0f, -0.000000f,
-			1.000000f,  0.0f, -0.000000f, 0.499398f,  0.0f, -0.024534f, 0.500000f,  0.0f, -0.000000f,
-			1.000000f,  0.0f, -0.000000f, 0.998795f,  0.0f, -0.049068f, 0.499398f,  0.0f, -0.024534f,
-			0.998795f,  0.0f, -0.049068f, 0.497592f,  0.0f, -0.049009f, 0.499398f,  0.0f, -0.024534f,
-			0.998795f,  0.0f, -0.049068f, 0.995185f,  0.0f, -0.098017f, 0.497592f,  0.0f, -0.049009f,
-			0.995185f,  0.0f, -0.098017f, 0.494588f,  0.0f, -0.073365f, 0.497592f,  0.0f, -0.049009f,
-			0.995185f,  0.0f, -0.098017f, 0.989177f,  0.0f, -0.146730f, 0.494588f,  0.0f, -0.073365f,
-			0.989177f,  0.0f, -0.146730f, 0.490393f,  0.0f, -0.097545f, 0.494588f,  0.0f, -0.073365f,
-			0.989177f,  0.0f, -0.146730f, 0.980785f,  0.0f, -0.195090f, 0.490393f,  0.0f, -0.097545f,
-			0.980785f,  0.0f, -0.195090f, 0.485016f,  0.0f, -0.121490f, 0.490393f,  0.0f, -0.097545f,
-			0.980785f,  0.0f, -0.195090f, 0.970031f,  0.0f, -0.242980f, 0.485016f,  0.0f, -0.121490f,
-			0.970031f,  0.0f, -0.242980f, 0.478470f,  0.0f, -0.145142f, 0.485016f,  0.0f, -0.121490f,
-			0.970031f,  0.0f, -0.242980f, 0.956940f,  0.0f, -0.290285f, 0.478470f,  0.0f, -0.145142f,
-			0.956940f,  0.0f, -0.290285f, 0.470772f,  0.0f, -0.168445f, 0.478470f,  0.0f, -0.145142f,
-			0.956940f,  0.0f, -0.290285f, 0.941544f,  0.0f, -0.336890f, 0.470772f,  0.0f, -0.168445f,
-			0.941544f,  0.0f, -0.336890f, 0.461940f,  0.0f, -0.191342f, 0.470772f,  0.0f, -0.168445f,
-			0.941544f,  0.0f, -0.336890f, 0.923880f,  0.0f, -0.382683f, 0.461940f,  0.0f, -0.191342f,
-			0.923880f,  0.0f, -0.382683f, 0.451995f,  0.0f, -0.213778f, 0.461940f,  0.0f, -0.191342f,
-			0.923880f,  0.0f, -0.382683f, 0.903989f,  0.0f, -0.427555f, 0.451995f,  0.0f, -0.213778f,
-			0.903989f,  0.0f, -0.427555f, 0.440961f,  0.0f, -0.235698f, 0.451995f,  0.0f, -0.213778f,
-			0.903989f,  0.0f, -0.427555f, 0.881921f,  0.0f, -0.471397f, 0.440961f,  0.0f, -0.235698f,
-			0.881921f,  0.0f, -0.471397f, 0.428864f,  0.0f, -0.257051f, 0.440961f,  0.0f, -0.235698f,
-			0.881921f,  0.0f, -0.471397f, 0.857729f,  0.0f, -0.514103f, 0.428864f,  0.0f, -0.257051f,
-			0.857729f,  0.0f, -0.514103f, 0.415735f,  0.0f, -0.277785f, 0.428864f,  0.0f, -0.257051f,
-			0.857729f,  0.0f, -0.514103f, 0.831470f,  0.0f, -0.555570f, 0.415735f,  0.0f, -0.277785f,
-			0.831470f,  0.0f, -0.555570f, 0.401604f,  0.0f, -0.297850f, 0.415735f,  0.0f, -0.277785f,
-			0.831470f,  0.0f, -0.555570f, 0.803208f,  0.0f, -0.595699f, 0.401604f,  0.0f, -0.297850f,
-			0.803208f,  0.0f, -0.595699f, 0.386505f,  0.0f, -0.317197f, 0.401604f,  0.0f, -0.297850f,
-			0.803208f,  0.0f, -0.595699f, 0.773010f,  0.0f, -0.634393f, 0.386505f,  0.0f, -0.317197f,
-			0.773010f,  0.0f, -0.634393f, 0.370476f,  0.0f, -0.335779f, 0.386505f,  0.0f, -0.317197f,
-			0.773010f,  0.0f, -0.634393f, 0.740951f,  0.0f, -0.671559f, 0.370476f,  0.0f, -0.335779f,
-			0.740951f,  0.0f, -0.671559f, 0.353553f,  0.0f, -0.353553f, 0.370476f,  0.0f, -0.335779f,
-			0.740951f,  0.0f, -0.671559f, 0.707107f,  0.0f, -0.707107f, 0.353553f,  0.0f, -0.353553f,
-			0.707107f,  0.0f, -0.707107f, 0.335779f,  0.0f, -0.370476f, 0.353553f,  0.0f, -0.353553f,
-			0.707107f,  0.0f, -0.707107f, 0.671559f,  0.0f, -0.740951f, 0.335779f,  0.0f, -0.370476f,
-			0.671559f,  0.0f, -0.740951f, 0.317197f,  0.0f, -0.386505f, 0.335779f,  0.0f, -0.370476f,
-			0.671559f,  0.0f, -0.740951f, 0.634393f,  0.0f, -0.773010f, 0.317197f,  0.0f, -0.386505f,
-			0.634393f,  0.0f, -0.773010f, 0.297850f,  0.0f, -0.401604f, 0.317197f,  0.0f, -0.386505f,
-			0.634393f,  0.0f, -0.773010f, 0.595699f,  0.0f, -0.803208f, 0.297850f,  0.0f, -0.401604f,
-			0.595699f,  0.0f, -0.803208f, 0.277785f,  0.0f, -0.415735f, 0.297850f,  0.0f, -0.401604f,
-			0.595699f,  0.0f, -0.803208f, 0.555570f,  0.0f, -0.831470f, 0.277785f,  0.0f, -0.415735f,
-			0.555570f,  0.0f, -0.831470f, 0.257051f,  0.0f, -0.428864f, 0.277785f,  0.0f, -0.415735f,
-			0.555570f,  0.0f, -0.831470f, 0.514103f,  0.0f, -0.857729f, 0.257051f,  0.0f, -0.428864f,
-			0.514103f,  0.0f, -0.857729f, 0.235698f,  0.0f, -0.440961f, 0.257051f,  0.0f, -0.428864f,
-			0.514103f,  0.0f, -0.857729f, 0.471397f,  0.0f, -0.881921f, 0.235698f,  0.0f, -0.440961f,
-			0.471397f,  0.0f, -0.881921f, 0.213778f,  0.0f, -0.451995f, 0.235698f,  0.0f, -0.440961f,
-			0.471397f,  0.0f, -0.881921f, 0.427555f,  0.0f, -0.903989f, 0.213778f,  0.0f, -0.451995f,
-			0.427555f,  0.0f, -0.903989f, 0.191342f,  0.0f, -0.461940f, 0.213778f,  0.0f, -0.451995f,
-			0.427555f,  0.0f, -0.903989f, 0.382683f,  0.0f, -0.923880f, 0.191342f,  0.0f, -0.461940f,
-			0.382683f,  0.0f, -0.923880f, 0.168445f,  0.0f, -0.470772f, 0.191342f,  0.0f, -0.461940f,
-			0.382683f,  0.0f, -0.923880f, 0.336890f,  0.0f, -0.941544f, 0.168445f,  0.0f, -0.470772f,
-			0.336890f,  0.0f, -0.941544f, 0.145142f,  0.0f, -0.478470f, 0.168445f,  0.0f, -0.470772f,
-			0.336890f,  0.0f, -0.941544f, 0.290285f,  0.0f, -0.956940f, 0.145142f,  0.0f, -0.478470f,
-			0.290285f,  0.0f, -0.956940f, 0.121490f,  0.0f, -0.485016f, 0.145142f,  0.0f, -0.478470f,
-			0.290285f,  0.0f, -0.956940f, 0.242980f,  0.0f, -0.970031f, 0.121490f,  0.0f, -0.485016f,
-			0.242980f,  0.0f, -0.970031f, 0.097545f,  0.0f, -0.490393f, 0.121490f,  0.0f, -0.485016f,
-			0.242980f,  0.0f, -0.970031f, 0.195090f,  0.0f, -0.980785f, 0.097545f,  0.0f, -0.490393f,
-			0.195090f,  0.0f, -0.980785f, 0.073365f,  0.0f, -0.494588f, 0.097545f,  0.0f, -0.490393f,
-			0.195090f,  0.0f, -0.980785f, 0.146730f,  0.0f, -0.989177f, 0.073365f,  0.0f, -0.494588f,
-			0.146730f,  0.0f, -0.989177f, 0.049009f,  0.0f, -0.497592f, 0.073365f,  0.0f, -0.494588f,
-			0.146730f,  0.0f, -0.989177f, 0.098017f,  0.0f, -0.995185f, 0.049009f,  0.0f, -0.497592f,
-			0.098017f,  0.0f, -0.995185f, 0.024534f,  0.0f, -0.499398f, 0.049009f,  0.0f, -0.497592f,
-			0.098017f,  0.0f, -0.995185f, 0.049068f,  0.0f, -0.998795f, 0.024534f,  0.0f, -0.499398f,
-			0.049068f,  0.0f, -0.998795f, -0.000000f,  0.0f, -0.500000f, 0.024534f,  0.0f, -0.499398f,
-			0.049068f,  0.0f, -0.998795f, -0.000000f,  0.0f, -1.000000f, -0.000000f,  0.0f, -0.500000f,
-			-0.000000f,  0.0f, -1.000000f, -0.024534f,  0.0f, -0.499398f, -0.000000f,  0.0f, -0.500000f,
-			-0.000000f,  0.0f, -1.000000f, -0.049068f,  0.0f, -0.998795f, -0.024534f,  0.0f, -0.499398f,
-			-0.049068f,  0.0f, -0.998795f, -0.049009f,  0.0f, -0.497592f, -0.024534f,  0.0f, -0.499398f,
-			-0.049068f,  0.0f, -0.998795f, -0.098017f,  0.0f, -0.995185f, -0.049009f,  0.0f, -0.497592f,
-			-0.098017f,  0.0f, -0.995185f, -0.073365f,  0.0f, -0.494588f, -0.049009f,  0.0f, -0.497592f,
-			-0.098017f,  0.0f, -0.995185f, -0.146730f,  0.0f, -0.989177f, -0.073365f,  0.0f, -0.494588f,
-			-0.146730f,  0.0f, -0.989177f, -0.097545f,  0.0f, -0.490393f, -0.073365f,  0.0f, -0.494588f,
-			-0.146730f,  0.0f, -0.989177f, -0.195090f,  0.0f, -0.980785f, -0.097545f,  0.0f, -0.490393f,
-			-0.195090f,  0.0f, -0.980785f, -0.121490f,  0.0f, -0.485016f, -0.097545f,  0.0f, -0.490393f,
-			-0.195090f,  0.0f, -0.980785f, -0.242980f,  0.0f, -0.970031f, -0.121490f,  0.0f, -0.485016f,
-			-0.242980f,  0.0f, -0.970031f, -0.145142f,  0.0f, -0.478470f, -0.121490f,  0.0f, -0.485016f,
-			-0.242980f,  0.0f, -0.970031f, -0.290285f,  0.0f, -0.956940f, -0.145142f,  0.0f, -0.478470f,
-			-0.290285f,  0.0f, -0.956940f, -0.168445f,  0.0f, -0.470772f, -0.145142f,  0.0f, -0.478470f,
-			-0.290285f,  0.0f, -0.956940f, -0.336890f,  0.0f, -0.941544f, -0.168445f,  0.0f, -0.470772f,
-			-0.336890f,  0.0f, -0.941544f, -0.191342f,  0.0f, -0.461940f, -0.168445f,  0.0f, -0.470772f,
-			-0.336890f,  0.0f, -0.941544f, -0.382683f,  0.0f, -0.923880f, -0.191342f,  0.0f, -0.461940f,
-			-0.382683f,  0.0f, -0.923880f, -0.213778f,  0.0f, -0.451995f, -0.191342f,  0.0f, -0.461940f,
-			-0.382683f,  0.0f, -0.923880f, -0.427555f,  0.0f, -0.903989f, -0.213778f,  0.0f, -0.451995f,
-			-0.427555f,  0.0f, -0.903989f, -0.235698f,  0.0f, -0.440961f, -0.213778f,  0.0f, -0.451995f,
-			-0.427555f,  0.0f, -0.903989f, -0.471397f,  0.0f, -0.881921f, -0.235698f,  0.0f, -0.440961f,
-			-0.471397f,  0.0f, -0.881921f, -0.257051f,  0.0f, -0.428864f, -0.235698f,  0.0f, -0.440961f,
-			-0.471397f,  0.0f, -0.881921f, -0.514103f,  0.0f, -0.857729f, -0.257051f,  0.0f, -0.428864f,
-			-0.514103f,  0.0f, -0.857729f, -0.277785f,  0.0f, -0.415735f, -0.257051f,  0.0f, -0.428864f,
-			-0.514103f,  0.0f, -0.857729f, -0.555570f,  0.0f, -0.831470f, -0.277785f,  0.0f, -0.415735f,
-			-0.555570f,  0.0f, -0.831470f, -0.297850f,  0.0f, -0.401604f, -0.277785f,  0.0f, -0.415735f,
-			-0.555570f,  0.0f, -0.831470f, -0.595699f,  0.0f, -0.803208f, -0.297850f,  0.0f, -0.401604f,
-			-0.595699f,  0.0f, -0.803208f, -0.317197f,  0.0f, -0.386505f, -0.297850f,  0.0f, -0.401604f,
-			-0.595699f,  0.0f, -0.803208f, -0.634393f,  0.0f, -0.773010f, -0.317197f,  0.0f, -0.386505f,
-			-0.634393f,  0.0f, -0.773010f, -0.335779f,  0.0f, -0.370476f, -0.317197f,  0.0f, -0.386505f,
-			-0.634393f,  0.0f, -0.773010f, -0.671559f,  0.0f, -0.740951f, -0.335779f,  0.0f, -0.370476f,
-			-0.671559f,  0.0f, -0.740951f, -0.353553f,  0.0f, -0.353553f, -0.335779f,  0.0f, -0.370476f,
-			-0.671559f,  0.0f, -0.740951f, -0.707107f,  0.0f, -0.707107f, -0.353553f,  0.0f, -0.353553f,
-			-0.707107f,  0.0f, -0.707107f, -0.370476f,  0.0f, -0.335779f, -0.353553f,  0.0f, -0.353553f,
-			-0.707107f,  0.0f, -0.707107f, -0.740951f,  0.0f, -0.671559f, -0.370476f,  0.0f, -0.335779f,
-			-0.740951f,  0.0f, -0.671559f, -0.386505f,  0.0f, -0.317197f, -0.370476f,  0.0f, -0.335779f,
-			-0.740951f,  0.0f, -0.671559f, -0.773010f,  0.0f, -0.634393f, -0.386505f,  0.0f, -0.317197f,
-			-0.773010f,  0.0f, -0.634393f, -0.401604f,  0.0f, -0.297850f, -0.386505f,  0.0f, -0.317197f,
-			-0.773010f,  0.0f, -0.634393f, -0.803208f,  0.0f, -0.595699f, -0.401604f,  0.0f, -0.297850f,
-			-0.803208f,  0.0f, -0.595699f, -0.415735f,  0.0f, -0.277785f, -0.401604f,  0.0f, -0.297850f,
-			-0.803208f,  0.0f, -0.595699f, -0.831470f,  0.0f, -0.555570f, -0.415735f,  0.0f, -0.277785f,
-			-0.831470f,  0.0f, -0.555570f, -0.428864f,  0.0f, -0.257051f, -0.415735f,  0.0f, -0.277785f,
-			-0.831470f,  0.0f, -0.555570f, -0.857729f,  0.0f, -0.514103f, -0.428864f,  0.0f, -0.257051f,
-			-0.857729f,  0.0f, -0.514103f, -0.440961f,  0.0f, -0.235698f, -0.428864f,  0.0f, -0.257051f,
-			-0.857729f,  0.0f, -0.514103f, -0.881921f,  0.0f, -0.471397f, -0.440961f,  0.0f, -0.235698f,
-			-0.881921f,  0.0f, -0.471397f, -0.451995f,  0.0f, -0.213778f, -0.440961f,  0.0f, -0.235698f,
-			-0.881921f,  0.0f, -0.471397f, -0.903989f,  0.0f, -0.427555f, -0.451995f,  0.0f, -0.213778f,
-			-0.903989f,  0.0f, -0.427555f, -0.461940f,  0.0f, -0.191342f, -0.451995f,  0.0f, -0.213778f,
-			-0.903989f,  0.0f, -0.427555f, -0.923880f,  0.0f, -0.382683f, -0.461940f,  0.0f, -0.191342f,
-			-0.923880f,  0.0f, -0.382683f, -0.470772f,  0.0f, -0.168445f, -0.461940f,  0.0f, -0.191342f,
-			-0.923880f,  0.0f, -0.382683f, -0.941544f,  0.0f, -0.336890f, -0.470772f,  0.0f, -0.168445f,
-			-0.941544f,  0.0f, -0.336890f, -0.478470f,  0.0f, -0.145142f, -0.470772f,  0.0f, -0.168445f,
-			-0.941544f,  0.0f, -0.336890f, -0.956940f,  0.0f, -0.290285f, -0.478470f,  0.0f, -0.145142f,
-			-0.956940f,  0.0f, -0.290285f, -0.485016f,  0.0f, -0.121490f, -0.478470f,  0.0f, -0.145142f,
-			-0.956940f,  0.0f, -0.290285f, -0.970031f,  0.0f, -0.242980f, -0.485016f,  0.0f, -0.121490f,
-			-0.970031f,  0.0f, -0.242980f, -0.490393f,  0.0f, -0.097545f, -0.485016f,  0.0f, -0.121490f,
-			-0.970031f,  0.0f, -0.242980f, -0.980785f,  0.0f, -0.195090f, -0.490393f,  0.0f, -0.097545f,
-			-0.980785f,  0.0f, -0.195090f, -0.494588f,  0.0f, -0.073365f, -0.490393f,  0.0f, -0.097545f,
-			-0.980785f,  0.0f, -0.195090f, -0.989177f,  0.0f, -0.146730f, -0.494588f,  0.0f, -0.073365f,
-			-0.989177f,  0.0f, -0.146730f, -0.497592f,  0.0f, -0.049009f, -0.494588f,  0.0f, -0.073365f,
-			-0.989177f,  0.0f, -0.146730f, -0.995185f,  0.0f, -0.098017f, -0.497592f,  0.0f, -0.049009f,
-			-0.995185f,  0.0f, -0.098017f, -0.499398f,  0.0f, -0.024534f, -0.497592f,  0.0f, -0.049009f,
-			-0.995185f,  0.0f, -0.098017f, -0.998795f,  0.0f, -0.049068f, -0.499398f,  0.0f, -0.024534f,
-			-0.998795f,  0.0f, -0.049068f, -0.500000f,  0.0f, -0.000000f, -0.499398f,  0.0f, -0.024534f,
-			-0.998795f,  0.0f, -0.049068f, -1.000000f,  0.0f, -0.000000f, -0.500000f,  0.0f, -0.000000f,
-			-1.000000f,  0.0f, -0.000000f, -0.499398f,  0.0f, 0.024534f, -0.500000f,  0.0f, -0.000000f,
-			-1.000000f,  0.0f, -0.000000f, -0.998795f,  0.0f, 0.049068f, -0.499398f,  0.0f, 0.024534f,
-			-0.998795f,  0.0f, 0.049068f, -0.497592f,  0.0f, 0.049009f, -0.499398f,  0.0f, 0.024534f,
-			-0.998795f,  0.0f, 0.049068f, -0.995185f,  0.0f, 0.098017f, -0.497592f,  0.0f, 0.049009f,
-			-0.995185f,  0.0f, 0.098017f, -0.494588f,  0.0f, 0.073365f, -0.497592f,  0.0f, 0.049009f,
-			-0.995185f,  0.0f, 0.098017f, -0.989177f,  0.0f, 0.146730f, -0.494588f,  0.0f, 0.073365f,
-			-0.989177f,  0.0f, 0.146730f, -0.490393f,  0.0f, 0.097545f, -0.494588f,  0.0f, 0.073365f,
-			-0.989177f,  0.0f, 0.146730f, -0.980785f,  0.0f, 0.195090f, -0.490393f,  0.0f, 0.097545f,
-			-0.980785f,  0.0f, 0.195090f, -0.485016f,  0.0f, 0.121490f, -0.490393f,  0.0f, 0.097545f,
-			-0.980785f,  0.0f, 0.195090f, -0.970031f,  0.0f, 0.242980f, -0.485016f,  0.0f, 0.121490f,
-			-0.970031f,  0.0f, 0.242980f, -0.478470f,  0.0f, 0.145142f, -0.485016f,  0.0f, 0.121490f,
-			-0.970031f,  0.0f, 0.242980f, -0.956940f,  0.0f, 0.290285f, -0.478470f,  0.0f, 0.145142f,
-			-0.956940f,  0.0f, 0.290285f, -0.470772f,  0.0f, 0.168445f, -0.478470f,  0.0f, 0.145142f,
-			-0.956940f,  0.0f, 0.290285f, -0.941544f,  0.0f, 0.336890f, -0.470772f,  0.0f, 0.168445f,
-			-0.941544f,  0.0f, 0.336890f, -0.461940f,  0.0f, 0.191342f, -0.470772f,  0.0f, 0.168445f,
-			-0.941544f,  0.0f, 0.336890f, -0.923880f,  0.0f, 0.382683f, -0.461940f,  0.0f, 0.191342f,
-			-0.923880f,  0.0f, 0.382683f, -0.451995f,  0.0f, 0.213778f, -0.461940f,  0.0f, 0.191342f,
-			-0.923880f,  0.0f, 0.382683f, -0.903989f,  0.0f, 0.427555f, -0.451995f,  0.0f, 0.213778f,
-			-0.903989f,  0.0f, 0.427555f, -0.440961f,  0.0f, 0.235698f, -0.451995f,  0.0f, 0.213778f,
-			-0.903989f,  0.0f, 0.427555f, -0.881921f,  0.0f, 0.471397f, -0.440961f,  0.0f, 0.235698f,
-			-0.881921f,  0.0f, 0.471397f, -0.428864f,  0.0f, 0.257051f, -0.440961f,  0.0f, 0.235698f,
-			-0.881921f,  0.0f, 0.471397f, -0.857729f,  0.0f, 0.514103f, -0.428864f,  0.0f, 0.257051f,
-			-0.857729f,  0.0f, 0.514103f, -0.415735f,  0.0f, 0.277785f, -0.428864f,  0.0f, 0.257051f,
-			-0.857729f,  0.0f, 0.514103f, -0.831470f,  0.0f, 0.555570f, -0.415735f,  0.0f, 0.277785f,
-			-0.831470f,  0.0f, 0.555570f, -0.401604f,  0.0f, 0.297850f, -0.415735f,  0.0f, 0.277785f,
-			-0.831470f,  0.0f, 0.555570f, -0.803208f,  0.0f, 0.595699f, -0.401604f,  0.0f, 0.297850f,
-			-0.803208f,  0.0f, 0.595699f, -0.386505f,  0.0f, 0.317197f, -0.401604f,  0.0f, 0.297850f,
-			-0.803208f,  0.0f, 0.595699f, -0.773010f,  0.0f, 0.634393f, -0.386505f,  0.0f, 0.317197f,
-			-0.773010f,  0.0f, 0.634393f, -0.370476f,  0.0f, 0.335779f, -0.386505f,  0.0f, 0.317197f,
-			-0.773010f,  0.0f, 0.634393f, -0.740951f,  0.0f, 0.671559f, -0.370476f,  0.0f, 0.335779f,
-			-0.740951f,  0.0f, 0.671559f, -0.353553f,  0.0f, 0.353553f, -0.370476f,  0.0f, 0.335779f,
-			-0.740951f,  0.0f, 0.671559f, -0.707107f,  0.0f, 0.707107f, -0.353553f,  0.0f, 0.353553f,
-			-0.707107f,  0.0f, 0.707107f, -0.335779f,  0.0f, 0.370476f, -0.353553f,  0.0f, 0.353553f,
-			-0.707107f,  0.0f, 0.707107f, -0.671559f,  0.0f, 0.740951f, -0.335779f,  0.0f, 0.370476f,
-			-0.671559f,  0.0f, 0.740951f, -0.317197f,  0.0f, 0.386505f, -0.335779f,  0.0f, 0.370476f,
-			-0.671559f,  0.0f, 0.740951f, -0.634393f,  0.0f, 0.773010f, -0.317197f,  0.0f, 0.386505f,
-			-0.634393f,  0.0f, 0.773010f, -0.297850f,  0.0f, 0.401604f, -0.317197f,  0.0f, 0.386505f,
-			-0.634393f,  0.0f, 0.773010f, -0.595699f,  0.0f, 0.803208f, -0.297850f,  0.0f, 0.401604f,
-			-0.595699f,  0.0f, 0.803208f, -0.277785f,  0.0f, 0.415735f, -0.297850f,  0.0f, 0.401604f,
-			-0.595699f,  0.0f, 0.803208f, -0.555570f,  0.0f, 0.831470f, -0.277785f,  0.0f, 0.415735f,
-			-0.555570f,  0.0f, 0.831470f, -0.257051f,  0.0f, 0.428864f, -0.277785f,  0.0f, 0.415735f,
-			-0.555570f,  0.0f, 0.831470f, -0.514103f,  0.0f, 0.857729f, -0.257051f,  0.0f, 0.428864f,
-			-0.514103f,  0.0f, 0.857729f, -0.235698f,  0.0f, 0.440961f, -0.257051f,  0.0f, 0.428864f,
-			-0.514103f,  0.0f, 0.857729f, -0.471397f,  0.0f, 0.881921f, -0.235698f,  0.0f, 0.440961f,
-			-0.471397f,  0.0f, 0.881921f, -0.213778f,  0.0f, 0.451995f, -0.235698f,  0.0f, 0.440961f,
-			-0.471397f,  0.0f, 0.881921f, -0.427555f,  0.0f, 0.903989f, -0.213778f,  0.0f, 0.451995f,
-			-0.427555f,  0.0f, 0.903989f, -0.191342f,  0.0f, 0.461940f, -0.213778f,  0.0f, 0.451995f,
-			-0.427555f,  0.0f, 0.903989f, -0.382683f,  0.0f, 0.923880f, -0.191342f,  0.0f, 0.461940f,
-			-0.382683f,  0.0f, 0.923880f, -0.168445f,  0.0f, 0.470772f, -0.191342f,  0.0f, 0.461940f,
-			-0.382683f,  0.0f, 0.923880f, -0.336890f,  0.0f, 0.941544f, -0.168445f,  0.0f, 0.470772f,
-			-0.336890f,  0.0f, 0.941544f, -0.145142f,  0.0f, 0.478470f, -0.168445f,  0.0f, 0.470772f,
-			-0.336890f,  0.0f, 0.941544f, -0.290285f,  0.0f, 0.956940f, -0.145142f,  0.0f, 0.478470f,
-			-0.290285f,  0.0f, 0.956940f, -0.121490f,  0.0f, 0.485016f, -0.145142f,  0.0f, 0.478470f,
-			-0.290285f,  0.0f, 0.956940f, -0.242980f,  0.0f, 0.970031f, -0.121490f,  0.0f, 0.485016f,
-			-0.242980f,  0.0f, 0.970031f, -0.097545f,  0.0f, 0.490393f, -0.121490f,  0.0f, 0.485016f,
-			-0.242980f,  0.0f, 0.970031f, -0.195090f,  0.0f, 0.980785f, -0.097545f,  0.0f, 0.490393f,
-			-0.195090f,  0.0f, 0.980785f, -0.073365f,  0.0f, 0.494588f, -0.097545f,  0.0f, 0.490393f,
-			-0.195090f,  0.0f, 0.980785f, -0.146730f,  0.0f, 0.989177f, -0.073365f,  0.0f, 0.494588f,
-			-0.146730f,  0.0f, 0.989177f, -0.049009f,  0.0f, 0.497592f, -0.073365f,  0.0f, 0.494588f,
-			-0.146730f,  0.0f, 0.989177f, -0.098017f,  0.0f, 0.995185f, -0.049009f,  0.0f, 0.497592f,
-			-0.098017f,  0.0f, 0.995185f, -0.024534f,  0.0f, 0.499398f, -0.049009f,  0.0f, 0.497592f,
-			-0.098017f,  0.0f, 0.995185f, -0.049068f,  0.0f, 0.998795f, -0.024534f,  0.0f, 0.499398f,
-			-0.049068f,  0.0f, 0.998795f, 0.000000f,  0.0f, 0.500000f, -0.024534f,  0.0f, 0.499398f,
-			-0.049068f,  0.0f, 0.998795f, 0.000000f,  0.0f, 1.000000f, 0.000000f,  0.0f, 0.500000f,
-		};
-		// The rings are made up of squares (two triangles)
-		// Each square has the exact same texture coordinates
-		// So texture coordinates can be generated via a loop
-		float[] texcoords = new float[vertices.length];
-		for (int i = 0; i < vertices.length / 18; i++) {
-			texcoords[i * 12    ] = 1.0f;
-			texcoords[i * 12 + 1] = 0.0f;
-			texcoords[i * 12 + 2] = 0.0f;
-			texcoords[i * 12 + 3] = 1.0f;
-			texcoords[i * 12 + 4] = 0.0f;
-			texcoords[i * 12 + 5] = 0.0f;
-			texcoords[i * 12 + 6] = 1.0f;
-			texcoords[i * 12 + 7] = 0.0f;
-			texcoords[i * 12 + 8] = 1.0f;
-			texcoords[i * 12 + 9] = 1.0f;
-			texcoords[i * 12 +10] = 0.0f;
-			texcoords[i * 12 +11] = 1.0f;
-		}
-
-		// Since the shape is a 2D shape, all normals point straight up
-		float[] normals = new float[vertices.length];
-		for (int i = 0; i < vertices.length / 3; i++) {
-			normals[i * 3] = 0.0f;
-			normals[i * 3 + 1] = 1.0f;
-			normals[i * 3 + 2] = 0.0f;
-		}
-
-		int[] indices = new int[vertices.length];
-		for (int i = 0; i < vertices.length; i++) {
-			indices[i] = i;
-		}
-
-		rings.setVertexBuffer(BufferUtil.directFloatBuffer(vertices));
-		rings.setNormalsBuffer(BufferUtil.directFloatBuffer(normals));
-		rings.setTextureCoordBuffer(BufferUtil.directFloatBuffer(texcoords));
-		rings.setIndexBuffer(BufferUtil.directIntBuffer(indices));
-		
-		Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
-		TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		tstate.setTexture(sm.getTextureManager().getAssetByPath("2k_saturn_ring_black.png"));
-
-		FrontFaceState faceState = (FrontFaceState) sm.getRenderSystem().createRenderState(RenderState.Type.FRONT_FACE);
-		if (rev)
-			faceState.setVertexWinding(FrontFaceState.VertexWinding.CLOCKWISE);
-		ZBufferState zstate = (ZBufferState) sm.getRenderSystem().createRenderState(Type.ZBUFFER);
-		
-		rings.setDataSource(DataSource.INDEX_BUFFER);
-		rings.setRenderState(faceState);
-		rings.setRenderState(tstate);
-		rings.setRenderState(zstate);
-		rings.setMaterial(mat);
-		
-
-		Planet saturn = planets[6]; // sloppy style
-		
-		SceneNode ringsN = sm.getSceneNode(saturn.name() + "Node").createChildSceneNode("ringsNode" + nameAppend);
-		ringsN.attachObject(rings);
-
-		final float scaleAmount = 4f;
-		ringsN.scale(scaleAmount, scaleAmount, scaleAmount);
-		return ringsN;
 	}
 	
 	// Set the HUD banner message

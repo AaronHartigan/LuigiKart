@@ -173,7 +173,7 @@ float ShadowCalculation(vec4 fragPosLightSpace)
 	float bias = 0.001;
 	float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-	int taps = 3;
+	int taps = 2;
     for(int x = -taps; x <= taps; ++x)
     {
         for(int y = -taps; y <= taps; ++y)
@@ -200,9 +200,6 @@ float ShadowCalculation(vec4 fragPosLightSpace)
 
     return shadow;
 }
-
-const float shadowDistance = 60f;
-const float transitionDistance = 10f;
 
 /**
  *

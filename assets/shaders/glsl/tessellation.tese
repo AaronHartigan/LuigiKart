@@ -7,9 +7,8 @@ layout (binding = 2) uniform sampler2D tex_normal;
 
 // Stage inputs and outputs
 in  vec2 tcs_out[];
-in vec4 FragPosLightSpace_out1[];
 layout (quads, fractional_even_spacing, cw) in;
-out vec4 FragPosLightSpace_out2[];
+out vec4 FragPosLightSpace;
 out vec2 tes_out;
 out vec3 varyingVertPos;
 out vec3 varyingNormal;
@@ -18,6 +17,7 @@ out vec3 varyingNormal;
 uniform mat4 mat4_norm;
 uniform mat4 mat4_mvp;
 uniform mat4 mat4_mv;
+uniform mat4 mat4_m;
 uniform mat4 mat4_p;
 uniform float multiplier;
 uniform float subdivisions;
@@ -40,6 +40,11 @@ uniform struct material_t
     vec4  emissive;
     float shininess;
 } material;
+
+uniform struct matrix_t {
+	mat4 lightSpaceMatrix;
+} matrix;
+
 
 // Light Struct
 struct light_t {
@@ -144,5 +149,6 @@ void main (void)
 	
 	// Calculate normal
 	varyingNormal  = calcNewNormal(tn);
-	FragPosLightSpace_out2[0] = FragPosLightSpace_out1[0];
+
+	FragPosLightSpace = matrix.lightSpaceMatrix * mat4_m * tessellatedPoint;
 }

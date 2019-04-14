@@ -17,7 +17,7 @@ out vertex_t
 // uniform(s)/structure(s)
 uniform struct matrix_t {
 	mat4 model;            		// model; transforms into view-space
-    mat4 view;                   // view; transforms into view-space
+    mat4 view;                  // view; transforms into view-space
     mat4 projection;            // transforms vertices into clip-space
     mat4 normal;                // inverse transpose of model-view matrix
 	mat4 lightSpaceMatrix;
@@ -31,6 +31,5 @@ void main()
     vs_out.vertex_texcoord  = vertex_texcoord;
     vs_out.vertex_normal    = mat3(matrix.normal) * vertex_normal;
     vs_out.vertex_position  = view_vertex.xyz;
-	vec3 FragPos = vec3(matrix.model * vec4(vertex_position, 1.0));
-	vs_out.FragPosLightSpace = matrix.lightSpaceMatrix * vec4(FragPos, 1.0);
+	vs_out.FragPosLightSpace = matrix.lightSpaceMatrix * matrix.model * vec4(vertex_position, 1.0);
 }
