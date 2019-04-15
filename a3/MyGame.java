@@ -296,6 +296,10 @@ public class MyGame extends VariableFrameRateGame {
 		float OFFSET = 0.3f;
 		float groundHeight = getGroundHeight(lp.x(), lp.z()) + OFFSET;
 		float currentHeight = lp.y();
+		// If avatar was already on the ground, and the ground is near, "snap" the avatar to the ground
+		if (isOnGround && (currentHeight - groundHeight) < 0.2f) {
+			currentHeight = groundHeight;
+		}
 		// If falling, update currentHeight with gravity
 		if (currentHeight > groundHeight) {
 			isOnGround = false;
