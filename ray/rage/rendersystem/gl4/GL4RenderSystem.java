@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
-import com.jogamp.opengl.DebugGL4;
 import com.jogamp.opengl.GL;
 import com.jogamp.opengl.GL4;
 import com.jogamp.opengl.GL4bc;
@@ -42,7 +41,6 @@ import com.jogamp.opengl.GLContext;
 import com.jogamp.opengl.GLEventListener;
 import com.jogamp.opengl.GLException;
 import com.jogamp.opengl.GLProfile;
-import com.jogamp.opengl.TraceGL4;
 import com.jogamp.opengl.awt.GLCanvas;
 import com.jogamp.opengl.util.gl2.GLUT;
 

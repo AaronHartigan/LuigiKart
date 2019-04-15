@@ -2,14 +2,12 @@ package a3;
 
 import myGameEngine.*;
 import myGameEngine.Networking.ProtocolClient;
-import myGameEngine.controllers.BungeeController;
 import myGameEngine.controllers.NodeOrbitController;
 import myGameEngine.myRage.HUDString;
 import net.java.games.input.Controller;
 import ray.input.GenericInputManager;
 import ray.input.InputManager;
 import ray.networking.IGameConnection.ProtocolType;
-import ray.physics.PhysicsObject;
 import ray.rage.Engine;
 import ray.rage.asset.material.Material;
 import ray.rage.asset.texture.Texture;
@@ -20,24 +18,19 @@ import ray.rage.rendersystem.RenderSystem;
 import ray.rage.rendersystem.RenderWindow;
 import ray.rage.rendersystem.Renderable.*;
 import ray.rage.rendersystem.gl4.GL4RenderSystem;
-import ray.rage.rendersystem.shader.GpuShaderProgram;
-import ray.rage.rendersystem.states.*;
-import ray.rage.rendersystem.states.RenderState.*;
 import ray.rage.rendersystem.states.TextureState.WrapMode;
 import ray.rage.scene.Camera;
 import ray.rage.scene.Entity;
 import ray.rage.scene.Light;
-import ray.rage.scene.ManualObject;
 import ray.rage.scene.SceneManager;
 import ray.rage.scene.SceneNode;
 import ray.rage.scene.SkyBox;
 import ray.rage.scene.Tessellation;
 import ray.rage.scene.Camera.Frustum.*;
-import ray.rage.scene.controllers.RotationController;
-import ray.rage.util.BufferUtil;
 import ray.rage.util.Configuration;
 import ray.rml.Degreef;
 import ray.rml.Matrix3;
+import ray.rml.Matrix3f;
 import ray.rml.Vector3;
 import ray.rml.Vector3f;
 
@@ -60,15 +53,14 @@ public class MyGame extends VariableFrameRateGame {
 
 	private GenericInputManager im = new GenericInputManager();
 	private GL4RenderSystem rs;
-	private int score = 0;
-	private String bannerMsg = "";
-	private int bannerTime = 2000;
+	private int elapsedMs = 0;
 	private float MOVE_SPEED = 0.01f;
 	private float ROTATE_SPEED = 0.1f;
 	private ScriptEngine jsEngine = null;
 	private File script = new File("script.js");
 	private long lastScriptModifiedTime = 0;
 	private SceneNode playerNode = null;
+	private SceneNode playerAvatar = null;
 	private String serverAddr;
 	private int serverPort;
 	private ProtocolType serverProtocol;
@@ -86,6 +78,8 @@ public class MyGame extends VariableFrameRateGame {
 	private float roadFriction = 5f;
 	private float vForward = 0f; // forward velicty
 	private float vUp = 0f; // upward velocity
+	private float currentPitch = 0f;
+	private float currentRoll = 0f;
 	private GameState gameState = new GameState();
 
 	public MyGame(String serverAddr, int serverPort) {
@@ -145,9 +139,9 @@ public class MyGame extends VariableFrameRateGame {
 		setupNetworking();
 		executeScript(script);
 		setupHUD();
+		createGroundPlane(sm);
 		createDolphinWithCamera(sm);
 		createBanana(sm);
-		createGroundPlane(sm);
 
 		setupInputs();
 		createSkyBox(eng, sm);
@@ -224,22 +218,37 @@ public class MyGame extends VariableFrameRateGame {
 	
 	public void updateHUD(Engine engine, float elapsTime) {
 		rs = (GL4RenderSystem) engine.getRenderSystem();
+		elapsedMs += elapsTime;
 		
 		ArrayList<HUDString> stringList = rs.getHUDStringsList();
 
-		int x = 15;
-		int y = 15;
-		stringList.get(0).setAll("Player " + (1) + "    Score: " + score, x, y);
-		if (bannerTime < 0) {
-			stringList.get(2).setStr("");
-		}
-		else if (bannerMsg.length() > 0) {
-			this.bannerTime -= elapsTime;
-			int bannerX = rs.getCanvas().getWidth() / 2 -  (int) (bannerMsg.length() * 4.1f);
-			int BannerY = rs.getCanvas().getHeight() - 50;
-			stringList.get(2).setAll(bannerMsg, bannerX, BannerY);
-		}
-		stringList.get(1).setAll("" + Math.round(vForward * 3) + " MPH", 0, rs.getCanvas().getHeight() - 25);
+		int bottomLeftX = 15;
+		int bottomLeftY = 15;
+		stringList.get(0).setAll("Lap 1/3", bottomLeftX, bottomLeftY);
+		
+		int topLeftX = 15;
+		int topLeftY = rs.getCanvas().getHeight() - 30;
+		stringList.get(1).setAll("1st", topLeftX, topLeftY);
+
+		int bottomRightX = rs.getCanvas().getWidth() - 100;
+		int bottomRightY = 15;
+		stringList.get(2).setAll("" + Math.round(vForward * 3) + " MPH", bottomRightX, bottomRightY);
+		
+		int topRightX = rs.getCanvas().getWidth() - 175;
+		int topRightY = rs.getCanvas().getHeight() - 30;
+		int ms = elapsedMs % 1000;
+		int sec = ((elapsedMs - ms) / 1000) % 60;
+		int min = (((elapsedMs - ms) / 1000) - sec) / 60;
+		stringList.get(3).setAll(
+			"time " +
+			String.format("%02d", min) +
+			":" +
+			String.format("%02d", sec) +
+			":" +
+			String.format("%03d", ms),
+			topRightX,
+			topRightY
+		);
 	}
 
 	private void processNetworking(float elapsTime) {
@@ -247,15 +256,20 @@ public class MyGame extends VariableFrameRateGame {
 			clientProtocol.processPackets();
 		}
 	}
+	
+	protected float getGroundHeight(float x, float z) {
+		Tessellation plane = getEngine().getSceneManager().getTessellation("plane");
+		return plane.getWorldHeight(x, z);
+	}
 
 	protected void updatePlayerPhysics(float elapsedMS) {
 		float elapsedSec = elapsedMS / 1000;
-		SceneNode dolphin = getEngine().getSceneManager().getSceneNode("dolphinNode");
-		Vector3 lp = dolphin.getLocalPosition();
-		Vector3 fv = dolphin.getLocalForwardAxis();
-		Tessellation plane = getEngine().getSceneManager().getTessellation("plane");
+		Vector3 lp = playerNode.getLocalPosition();
+		Vector3 fv = playerNode.getLocalForwardAxis();
 
+		// Handle forward movement
 		if (isOnGround) {
+			// adjust forward velocity
 			if (isAccelerating()) {
 				vForward += accelerationRate * elapsedSec;
 			}
@@ -273,33 +287,66 @@ public class MyGame extends VariableFrameRateGame {
 				vForward = Math.min(vForward, MAX_SPEED);
 			}
 		}
-
+		// apply forward velocity
 		fv = fv.mult(vForward * elapsedSec);
-		dolphin.setLocalPosition(lp.add(fv));
-		lp = dolphin.getLocalPosition();
+		playerNode.setLocalPosition(lp.add(fv));
 		
+		// Handle new location's height
+		lp = playerNode.getLocalPosition();
 		float OFFSET = 0.3f;
-		float newHeight = lp.y();
-		float groundHeight = plane.getWorldHeight(lp.x(), lp.z()) + OFFSET;
-		// If falling, update newHeight with gravity
-		if (newHeight > groundHeight) {
+		float groundHeight = getGroundHeight(lp.x(), lp.z()) + OFFSET;
+		float currentHeight = lp.y();
+		// If falling, update currentHeight with gravity
+		if (currentHeight > groundHeight) {
 			isOnGround = false;
 			vUp += gravity * elapsedSec;
-			newHeight += vUp * elapsedSec;
+			currentHeight += vUp * elapsedSec;
 		}
 		// Must check if gravity has put us below ground (or going uphill)
-		if (newHeight < groundHeight) {
+		if (currentHeight < groundHeight) {
 			isOnGround = true;
 			vUp = 0;
-			newHeight = groundHeight;
+			currentHeight = groundHeight;
 		}
-		dolphin.setLocalPosition(lp.x(), newHeight, lp.z());
+		playerNode.setLocalPosition(lp.x(), currentHeight, lp.z());
+
+		// Change the avatar's angle (visual change only)
+		if (isOnGround) {
+			Vector3 heading;
+			float heightChange;
+			playerAvatar.setLocalRotation(Matrix3f.createIdentityMatrix());
+			
+			// Calculate pitch
+			float CAR_LENGTH = 0.5f;
+			playerNode.moveForward(CAR_LENGTH);
+			heading = playerNode.getLocalPosition();
+			playerNode.moveBackward(CAR_LENGTH);
+			heightChange = (getGroundHeight(heading.x(), heading.z()) + OFFSET) - currentHeight;
+			float pitchAngle = (float) Math.toDegrees(Math.atan(heightChange / CAR_LENGTH));
+			float newPitch = (pitchAngle - currentPitch) * elapsedSec * 3 + currentPitch;
+			playerAvatar.pitch(Degreef.createFrom(-newPitch));
+			currentPitch = newPitch;
+			
+			// Calculate roll
+			float CAR_WIDTH = 0.25f;
+			playerNode.moveRight(CAR_WIDTH);
+			heading = playerNode.getLocalPosition();
+			playerNode.moveLeft(CAR_WIDTH);
+			heightChange = (getGroundHeight(heading.x(), heading.z()) + OFFSET) - currentHeight;
+			float rollAngle = (float) Math.toDegrees(Math.atan(heightChange / CAR_WIDTH));
+			float newRoll = (rollAngle - currentRoll) * elapsedSec * 5 + currentRoll;
+			playerAvatar.roll(Degreef.createFrom(newRoll));
+			currentRoll = newRoll;
+		}
 	}
 	
 	protected void createBanana(SceneManager sm) throws IOException {
 		Entity bananaE = sm.createEntity("banana", "banana.obj");
 		SceneNode bananaN = sm.getRootSceneNode().createChildSceneNode(bananaE.getName() + "Node");
 		bananaN.attachObject(bananaE);
+		Vector3 lp = bananaN.getLocalPosition();
+		float height = getGroundHeight(lp.x(), lp.z());
+		bananaN.translate(0f, height, 0f);
 		bananaN.scale(0.3f, 0.3f, 0.3f);
 	}
 
@@ -307,10 +354,11 @@ public class MyGame extends VariableFrameRateGame {
 		Entity dolphinE = sm.createEntity("dolphin", "dolphinHighPoly.obj");
 		dolphinE.setPrimitive(Primitive.TRIANGLES);
 		SceneNode dolphinN = sm.getRootSceneNode().createChildSceneNode(dolphinE.getName() + "Node");
+		SceneNode playerAvatarN = dolphinN.createChildSceneNode("playerAvatar");
 		playerNode = dolphinN;
-		//dolphinN.moveBackward(2.0f);
-		//dolphinN.moveUp(0.3f);
-		dolphinN.attachObject(dolphinE);
+		playerAvatar = playerAvatarN;
+		dolphinN.translate(-40f, 0, -80f);
+		playerAvatarN.attachObject(dolphinE);
 		//dolphinN.setPhysicsObject(new PhysicsObject());
 
 		SceneNode dolphinCamera = dolphinN.createChildSceneNode(dolphinN.getName() + "Camera");
@@ -338,7 +386,7 @@ public class MyGame extends VariableFrameRateGame {
 
 		SceneNode lightN = sm.getRootSceneNode().createChildSceneNode("lightNode");
 		lightN.translate(80f, 100f, 10f);
-		lightN.scale(11.2f, 11.2f, 11.2f);
+		lightN.scale(0.0000001f, 0.0000001f, 0.0000001f);
 		Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
 		mat.setEmissive(Color.WHITE);
 		lightE.setMaterial(mat);
@@ -370,20 +418,8 @@ public class MyGame extends VariableFrameRateGame {
 				);
 				im.associateAction(
 					c,
-					Component.Identifier.Key.Q,
-					new MoveNodeLeftAction(dolphin, this),
-					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-				);
-				im.associateAction(
-					c,
 					Component.Identifier.Key.S,
 					new StartDeccelerationAction(this),
-					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-				);
-				im.associateAction(
-					c,
-					Component.Identifier.Key.E,
-					new MoveNodeRightAction(dolphin, this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 				im.associateAction(
@@ -444,15 +480,15 @@ public class MyGame extends VariableFrameRateGame {
 		Tessellation plane = sm.createTessellation("plane");
 		SceneNode planeN = sm.getRootSceneNode().createChildSceneNode("planeNode");
 		planeN.attachObject(plane);
-		planeN.scale(100, 1, 100);
+		planeN.scale(250, 1, 250);
 
 		plane.getTextureState().setWrapMode(WrapMode.REPEAT_MIRRORED);
 		plane.setTexture(getEngine(), "hexagons.jpeg");
-		plane.setTextureTiling(8);
+		plane.setTextureTiling(16);
 
 		plane.setHeightMap(getEngine(), "height_map.png");
-		plane.setQuality(7);
-		plane.setMultiplier(4);
+		plane.setQuality(8);
+		plane.setMultiplier(10);
 	}
 	
 	protected double calcDistance(float x1, float y1, float z1, float x2, float y2, float z2) {
@@ -460,12 +496,6 @@ public class MyGame extends VariableFrameRateGame {
 		float dy = (y1 - y2);
 		float dz = (z1 - z2);
 		return Math.sqrt(dx * dx + dy * dy + dz * dz);
-	}
-	
-	// Set the HUD banner message
-	protected void setBannerMsg(String str) {
-		this.bannerMsg = str;
-		this.bannerTime = 3000;
 	}
 
 	// Setup and add a sky box to the scene
@@ -533,7 +563,7 @@ public class MyGame extends VariableFrameRateGame {
 	}
 	
 	public Matrix3 getPlayerRotation() {
-		return playerNode.getWorldRotation();
+		return playerAvatar.getWorldRotation();
 	}
 	
 	public void createGhostAvatar(UUID ghostID, Vector3 ghostPosition) {
