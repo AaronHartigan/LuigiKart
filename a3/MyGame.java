@@ -73,8 +73,7 @@ public class MyGame extends VariableFrameRateGame {
 	private boolean isBraking = false;
 	private float accelerationRate = 10f;
 	private float deccelerationRate = -15f;
-	private float MAX_SPEED = 20f;
-	private float MAX_REVERSE_SPEED = -5f;
+	private float MAX_BASE_SPEED = 20f;
 	private float roadFriction = 5f;
 	private float vForward = 0f; // forward velicty
 	private float vUp = 0f; // upward velocity
@@ -232,7 +231,7 @@ public class MyGame extends VariableFrameRateGame {
 
 		int bottomRightX = rs.getCanvas().getWidth() - 100;
 		int bottomRightY = 15;
-		stringList.get(2).setAll("" + Math.round(vForward * 3) + " MPH", bottomRightX, bottomRightY);
+		stringList.get(2).setAll("" + Math.round((vForward + getGravityForce()) * 3) + " MPH", bottomRightX, bottomRightY);
 		
 		int topRightX = rs.getCanvas().getWidth() - 175;
 		int topRightY = rs.getCanvas().getHeight() - 30;
@@ -265,7 +264,7 @@ public class MyGame extends VariableFrameRateGame {
 	protected void updatePlayerPhysics(float elapsedMS) {
 		float elapsedSec = elapsedMS / 1000;
 		Vector3 lp = playerNode.getLocalPosition();
-		Vector3 fv = playerNode.getLocalForwardAxis();
+		Vector3 fv = playerAvatar.getWorldForwardAxis();
 
 		// Handle forward movement
 		if (isOnGround) {
@@ -283,19 +282,35 @@ public class MyGame extends VariableFrameRateGame {
 			else {
 				float frictionDirection = vForward > 0f ? -1f : 1f;
 				vForward += roadFriction * frictionDirection * elapsedSec;
-				vForward = Math.max(vForward, MAX_REVERSE_SPEED);
-				vForward = Math.min(vForward, MAX_SPEED);
+				vForward = Math.max(vForward, getMaxReverseSpeed());
+				vForward = Math.min(vForward, getMaxSpeed());
 			}
 		}
 		// apply forward velocity
-		fv = fv.mult(vForward * elapsedSec);
-		playerNode.setLocalPosition(lp.add(fv));
+		fv = fv.mult(vForward * elapsedSec + getGravityForce() * elapsedSec);
+		
+		// Check if player is running into a wall by checking the angle of the avatar
+		float currentHeight = lp.y();
+		float tCAR_LENGTH = vForward > 0 ? 0.5f : -0.5f;
+		playerNode.moveForward(tCAR_LENGTH);
+		Vector3 newLP = playerNode.getLocalPosition();
+		playerNode.moveBackward(tCAR_LENGTH);
+		float heightDifferential = (getGroundHeight(newLP.x(), newLP.z()) + 0.3f) - currentHeight;
+		float tpitchAngle = (float) Math.toDegrees(Math.atan(heightDifferential / Math.abs(tCAR_LENGTH)));
+		if (tpitchAngle > 45f) {
+			// Calculate angle and set new angle and velocity
+			vForward = 0f;
+		}
+		else {
+			// Move forward
+			playerNode.setLocalPosition(lp.add(fv));
+		}
 		
 		// Handle new location's height
 		lp = playerNode.getLocalPosition();
 		float OFFSET = 0.3f;
 		float groundHeight = getGroundHeight(lp.x(), lp.z()) + OFFSET;
-		float currentHeight = lp.y();
+		currentHeight = lp.y();
 		// If avatar was already on the ground, and the ground is near, "snap" the avatar to the ground
 		if (isOnGround && (currentHeight - groundHeight) < 0.2f) {
 			currentHeight = groundHeight;
@@ -314,6 +329,10 @@ public class MyGame extends VariableFrameRateGame {
 		}
 		playerNode.setLocalPosition(lp.x(), currentHeight, lp.z());
 
+		
+		// IF HEIGHT DIFFERENTIAL IS TOO GREAT, STOP FORWARD MOMENTUM
+		// BASE HEIGHT DIFFERENTIAL ON DOLPHIN SPEED
+		
 		// Change the avatar's angle (visual change only)
 		if (isOnGround) {
 			Vector3 heading;
@@ -649,6 +668,18 @@ public class MyGame extends VariableFrameRateGame {
 
 	public void setDeccelerating(boolean isDeccelerating) {
 		this.isDeccelerating = isDeccelerating;
+	}
+	
+	protected float getGravityForce() {
+		return (float) Math.sin(Math.toRadians(currentPitch)) * gravity;
+	}
+	
+	protected float getMaxSpeed() {
+		return MAX_BASE_SPEED + getGravityForce();
+	}
+	
+	protected float getMaxReverseSpeed() {
+		return -getMaxSpeed() / 4;
 	}
 
 }
