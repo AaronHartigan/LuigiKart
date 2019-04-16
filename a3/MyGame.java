@@ -215,11 +215,7 @@ public class MyGame extends VariableFrameRateGame {
 			this.getPlayerRotation()
 		);
 		updateGameState();
-		/*
-		System.out.println(
-			getEngine().getSceneManager().getRootSceneNode().getChild("questionmarkbodyNode").getWorldPosition()
-		);
-		*/
+		updateItemBoxQuestionMarkRotation();
 	}
 	
 	
@@ -410,6 +406,21 @@ public class MyGame extends VariableFrameRateGame {
 		sm.addController(horizontalRotation);
 	}
 
+	protected void updateItemBoxQuestionMarkRotation() {
+		SceneNode questionmarkbody = getEngine().getSceneManager().getSceneNode("questionmarkbodyNode");
+		SceneNode questionmarkdot = getEngine().getSceneManager().getSceneNode("questionmarkdotNode");
+		SceneNode cameraNode = getEngine().getSceneManager().getSceneNode("dolphinNodeCamera");
+		Vector3 qmWP = questionmarkbody.getWorldPosition();
+		Vector3 cWP = cameraNode.getWorldPosition();
+		float angle = (float) Math.toDegrees(Math.atan((qmWP.x() - cWP.x())/(qmWP.z() - cWP.z())));
+		if (qmWP.z() > cWP.z()) {
+			angle += 180f;
+		}
+		questionmarkbody.setLocalRotation(Matrix3f.createIdentityMatrix());
+		questionmarkbody.yaw(Degreef.createFrom(angle));
+		questionmarkdot.setLocalRotation(Matrix3f.createIdentityMatrix());
+		questionmarkdot.yaw(Degreef.createFrom(angle));
+	}
 
 	protected void createDolphinWithCamera(SceneManager sm) throws IOException {
 		Entity dolphinE = sm.createEntity("dolphin", "dolphinHighPoly.obj");
