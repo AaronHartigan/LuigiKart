@@ -50,7 +50,7 @@ import ray.rml.*;
  * @author Raymond L. Rivera
  *
  */
-class GlslRenderingProgram extends AbstractGlslProgram {
+class GlslItemBoxProgram extends AbstractGlslProgram {
 
     private boolean                        initialized = false;
 
@@ -75,18 +75,21 @@ class GlslRenderingProgram extends AbstractGlslProgram {
     private GlslProgramUniformVec4         materialEmissive;
     private GlslProgramUniformFloat        materialShininess;
     
-    private GlslProgramUniformBool         canReceiveShadows;
+    private GlslProgramUniformFloat        textureMoveFactor;
     
     private GlslProgramUniformVec3         lightPos;
     private GlslProgramUniformVec3         viewPos;
+    
+    private float MOVE_SPEED = 0.0005f;
+    private float moveFactor = 0;
 
-    public GlslRenderingProgram(GLCanvas canvas) {
+    public GlslItemBoxProgram(GLCanvas canvas) {
         super(canvas);
     }
 
     @Override
     public Type getType() {
-        return Type.RENDERING;
+        return Type.ITEM_BOX;
     }
 
     @Override
@@ -99,8 +102,11 @@ class GlslRenderingProgram extends AbstractGlslProgram {
         final Matrix4 view = ctx.getViewMatrix();
         final Matrix4 proj = ctx.getProjectionMatrix();
         final Matrix4 lightSpace = ctx.getLightSpaceMatrix();
+        
+        moveFactor += MOVE_SPEED;
+        moveFactor %= 1;
+        textureMoveFactor.set(moveFactor);
 
-        canReceiveShadows.set(ctx.getCanReceiveShadows());
         setRenderable(r);
         setGlobalAmbientLight(ctx.getAmbientLight());
         setLocalLights(ctx.getLightsList(), view);
@@ -253,7 +259,7 @@ class GlslRenderingProgram extends AbstractGlslProgram {
         materialEmissive = new GlslProgramUniformVec4(this, canvas, "material.emissive");
         materialShininess = new GlslProgramUniformFloat(this, canvas, "material.shininess");
         
-        canReceiveShadows = new GlslProgramUniformBool(this, canvas, "canReceiveShadows");
+        textureMoveFactor = new GlslProgramUniformFloat(this, canvas, "textureMoveFactor");
         
    //     numberOfLights = new GlslProgramUniformInt(this, canvas, "material.numLights");  // SCOTT
 
@@ -286,7 +292,7 @@ class GlslRenderingProgram extends AbstractGlslProgram {
             materialEmissive.notifyDispose();
             materialShininess.notifyDispose();
             
-            canReceiveShadows.notifyDispose();
+            textureMoveFactor.notifyDispose();
 
             modelMatrix.notifyDispose();
             viewMatrix.notifyDispose();
@@ -311,7 +317,7 @@ class GlslRenderingProgram extends AbstractGlslProgram {
             materialEmissive = null;
             materialShininess = null;
             
-            canReceiveShadows = null;
+            textureMoveFactor = null;
 
             modelMatrix = null;
             viewMatrix = null;

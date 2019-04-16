@@ -39,6 +39,7 @@ final class GlslProgramContext implements GpuShaderProgram.Context {
     private Matrix4      lightSpaceMatrix;
     private Vector3      lightPosVec;
     private Vector3      viewPosVec;
+    private Boolean      canReceiveShadows = true;
 
     private AmbientLight ambientLight;
     private List<Light>  lightsList;
@@ -146,5 +147,15 @@ final class GlslProgramContext implements GpuShaderProgram.Context {
 	@Override
 	public void setLightPos(Vector3 lightPos) {
 		lightPosVec = lightPos;
+	}
+
+	@Override
+	public void setCanReceiveShadows(boolean canReceiveShadows) {
+		this.canReceiveShadows = canReceiveShadows;
+	}
+
+	@Override
+	public Boolean getCanReceiveShadows() {
+		return canReceiveShadows;
 	}
 }

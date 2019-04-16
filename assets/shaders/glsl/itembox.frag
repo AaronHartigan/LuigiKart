@@ -14,7 +14,6 @@ in vertex_t
 // stage output(s)
 out vec4 fragment;
 
-uniform bool canReceiveShadows;
 // uniform(s)/structure(s)
 uniform struct ambient_light_t
 {
@@ -62,6 +61,8 @@ uniform struct material_t
     vec4  emissive;
     float shininess;
 } material;
+
+uniform float textureMoveFactor;
 
 // bound to texture unit 0 by default
 layout (binding = 0) uniform sampler2D texture_sampler;
@@ -209,12 +210,23 @@ void main()
 {
     // account for global ambient light regardless of
     // whether local lights exist or not
-	float shadow = canReceiveShadows ? ShadowCalculation(fs_in.FragPosLightSpace) : 0f;
+	float shadow = 0f;
     vec4 effect = material.ambient * global_light.intensity;
 	vec4 special = vec4(0f, 0f, 0f, 0f);
     for (int i = 0; i < ssbo.lights.length(); ++i)
         special += get_light_effect(ssbo.lights[i], material);
 	effect += ((1 - shadow) * special);
-    fragment = texture2D(texture_sampler, fs_in.vertex_texcoord) * effect;
+	float tx = (fs_in.vertex_texcoord.x + textureMoveFactor);
+	while (tx > 1) {
+		tx -= 1;
+	}
+	float ty = fs_in.vertex_texcoord.y;
+    fragment = texture2D(texture_sampler, vec2(tx, ty)) * effect;
+	if (gl_FrontFacing) {
+		fragment.w = 0.5;
+	}
+	else {
+		fragment.w = 1.0;
+	}
 	//fragment = vec4(vec3(depth), 1.0);
 }

@@ -32,6 +32,7 @@ abstract class AbstractGenericRenderable implements Renderable {
     private Material                           material;
     private GpuShaderProgram                   gpuProgram;
     private GpuShaderProgram                   depthProgram = null;
+    private Boolean                            canReceiveShadows = true;
 
 	private Map<RenderState.Type, RenderState> renderStatesMap = new HashMap<>();
 
@@ -148,5 +149,15 @@ abstract class AbstractGenericRenderable implements Renderable {
         // other renderables; let the render system clean them up when it gets
         // disposed
         gpuProgram = null;
+    }
+    
+    @Override
+	public void setCanReceiveShadows(boolean canReceiveShadows) {
+    	this.canReceiveShadows = canReceiveShadows;
+    }
+    
+    @Override
+	public boolean getCanReceiveShadows() {
+    	return canReceiveShadows;
     }
 }

@@ -147,4 +147,9 @@ final class GenericEntity extends AbstractGenericSceneObject implements Entity {
             se.setDepthShaderProgram(prog);
     }
 
+	@Override
+	public void setCanReceiveShadows(boolean canReceiveShadows) {
+		for (SubEntity se : subEntityList)
+			se.setCanReceiveShadows(canReceiveShadows);
+	}
 }

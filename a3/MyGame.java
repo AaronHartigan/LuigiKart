@@ -19,6 +19,7 @@ import ray.rage.rendersystem.RenderWindow;
 import ray.rage.rendersystem.Renderable.*;
 import ray.rage.rendersystem.gl4.GL4RenderSystem;
 import ray.rage.rendersystem.states.TextureState.WrapMode;
+import ray.rage.rendersystem.shader.GpuShaderProgram;
 import ray.rage.scene.Camera;
 import ray.rage.scene.Entity;
 import ray.rage.scene.Light;
@@ -26,6 +27,7 @@ import ray.rage.scene.SceneManager;
 import ray.rage.scene.SceneNode;
 import ray.rage.scene.SkyBox;
 import ray.rage.scene.Tessellation;
+import ray.rage.scene.controllers.RotationController;
 import ray.rage.scene.Camera.Frustum.*;
 import ray.rage.util.Configuration;
 import ray.rml.Degreef;
@@ -141,6 +143,7 @@ public class MyGame extends VariableFrameRateGame {
 		createGroundPlane(sm);
 		createDolphinWithCamera(sm);
 		createBanana(sm);
+		createItemBox(sm);
 
 		setupInputs();
 		createSkyBox(eng, sm);
@@ -212,6 +215,11 @@ public class MyGame extends VariableFrameRateGame {
 			this.getPlayerRotation()
 		);
 		updateGameState();
+		/*
+		System.out.println(
+			getEngine().getSceneManager().getRootSceneNode().getChild("questionmarkbodyNode").getWorldPosition()
+		);
+		*/
 	}
 	
 	
@@ -328,12 +336,8 @@ public class MyGame extends VariableFrameRateGame {
 			currentHeight = groundHeight;
 		}
 		playerNode.setLocalPosition(lp.x(), currentHeight, lp.z());
-
 		
-		// IF HEIGHT DIFFERENTIAL IS TOO GREAT, STOP FORWARD MOMENTUM
-		// BASE HEIGHT DIFFERENTIAL ON DOLPHIN SPEED
-		
-		// Change the avatar's angle (visual change only)
+		// Change the avatar's angle
 		if (isOnGround) {
 			Vector3 heading;
 			float heightChange;
@@ -372,6 +376,40 @@ public class MyGame extends VariableFrameRateGame {
 		bananaN.translate(0f, height, 0f);
 		bananaN.scale(0.3f, 0.3f, 0.3f);
 	}
+	
+	protected void createItemBox(SceneManager sm) throws IOException {		
+		Entity itemBoxE = sm.createEntity("itembox", "itembox.obj");
+		SceneNode itemBoxN = sm.getRootSceneNode().createChildSceneNode(itemBoxE.getName() + "Node");
+		SceneNode itemBoxRotator = itemBoxN.createChildSceneNode(itemBoxE.getName() + "Rotator");
+		itemBoxE.setGpuShaderProgram(sm.getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.ITEM_BOX));
+		itemBoxRotator.attachObject(itemBoxE);
+		Vector3 lp = itemBoxN.getLocalPosition();
+		float height = getGroundHeight(lp.x(), lp.z());
+		itemBoxN.translate(-5f, height + 1f, 0f);
+		itemBoxN.scale(0.6f, 0.6f, 0.6f);
+		
+		Entity questionMarkBodyE = sm.createEntity("questionmarkbody", "questionmarkbody.obj");
+		questionMarkBodyE.setCanReceiveShadows(false);
+		SceneNode questionMarkBodyN = itemBoxN.createChildSceneNode(questionMarkBodyE.getName() + "Node");
+		questionMarkBodyN.attachObject(questionMarkBodyE);
+		questionMarkBodyN.scale(0.5f, 0.5f, 0.5f);
+		questionMarkBodyN.translate(0f, 0.2f, 0f);
+		
+		Entity questionMarkDotE = sm.createEntity("questionmarkdot", "questionmarkdot.obj");
+		questionMarkDotE.setCanReceiveShadows(false);
+		SceneNode questionMarkDotN = itemBoxN.createChildSceneNode(questionMarkDotE.getName() + "Node");
+		questionMarkDotN.attachObject(questionMarkDotE);
+		questionMarkDotN.scale(0.5f, 0.5f, 0.5f);
+		questionMarkDotN.translate(0f, -0.8f, 0f);
+
+		RotationController verticalRotation = new RotationController(Vector3f.createUnitVectorX(), 0.04f);
+		RotationController horizontalRotation = new RotationController(Vector3f.createUnitVectorY(), 0.07f);
+		verticalRotation.addNode(itemBoxRotator);
+		horizontalRotation.addNode(itemBoxRotator);
+		sm.addController(verticalRotation);
+		sm.addController(horizontalRotation);
+	}
+
 
 	protected void createDolphinWithCamera(SceneManager sm) throws IOException {
 		Entity dolphinE = sm.createEntity("dolphin", "dolphinHighPoly.obj");

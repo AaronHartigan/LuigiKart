@@ -427,6 +427,8 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
         gl.glDepthFunc(GL4.GL_LEQUAL);
         gl.glEnable(GL4.GL_PROGRAM_POINT_SIZE);
         gl.glEnable(GL4.GL_TEXTURE_CUBE_MAP_SEAMLESS);
+        //gl.glEnable(GL4.GL_MULTISAMPLE);
+        gl.glBlendFunc(GL4.GL_SRC_ALPHA, GL4.GL_ONE_MINUS_SRC_ALPHA);
         //gl.glFrontFace(GL4.GL_CW);
 
       //---------------------------------------------------------
@@ -608,12 +610,20 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
      // 2. render scene as normal using the generated depth/shadow map  
         // --------------------------------------------------------------
         if (RENDER_SCENE) {
+        	// To simulate different render queues, loop through multiple times
+        	// and only render the items you want per loop
+        	// Render Skbyox -> Tesselation -> everything else
+        	
+        	// Render Skybox
 	        for (Renderable r : renderQueue) {
 	            GpuShaderProgram program = r.getGpuShaderProgram();
 	            if (program == null) {
 	                logger.severe(Renderable.class.getSimpleName() + " skipped. No "
 	                        + GpuShaderProgram.class.getSimpleName() + " set");
 	                continue;
+	            }
+	            if (!(program.getType() == Type.SKYBOX)) {
+	            	continue;
 	            }
 	            setRenderStates(r);
 	            final GpuShaderProgram.Context ctx = program.createContext();
@@ -638,6 +648,157 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
 	
 	            ctx.notifyDispose();
 	        }
+	        gl.glEnable(GL4.GL_DEPTH_TEST);
+	        
+	        // Render Tessellation
+	        for (Renderable r : renderQueue) {
+	            GpuShaderProgram program = r.getGpuShaderProgram();
+	            if (program == null) {
+	                logger.severe(Renderable.class.getSimpleName() + " skipped. No "
+	                        + GpuShaderProgram.class.getSimpleName() + " set");
+	                continue;
+	            }
+	            if (!(program.getType() == Type.TESSELLATION)) {
+	            	continue;
+	            }
+	            setRenderStates(r);
+	            final GpuShaderProgram.Context ctx = program.createContext();
+	            ctx.setRenderable(r);
+	            ctx.setViewMatrix(viewMatrix);
+	            if (perspective) {
+		            ctx.setProjectionMatrix(projMatrix);
+	            }
+	            else {
+		            ctx.setProjectionMatrix(orthoProjection);
+	            }
+	            ctx.setLightsList(lightsList);
+	            ctx.setAmbientLight(ambientLight);
+	            ctx.setLightSpaceMatrix(lightSpaceMatrix);
+	
+	            program.bind();
+	            program.fetch(ctx);
+		        gl.glActiveTexture(GL4.GL_TEXTURE5);
+		        gl.glBindTexture(GL4.GL_TEXTURE_2D, depthMap[0]);
+	            drawRenderable(gl, r);
+	            program.unbind();
+	
+	            ctx.notifyDispose();
+	        }
+	        
+	        // Render Renderable + Skeletal_Renderable
+	        for (Renderable r : renderQueue) {
+	            GpuShaderProgram program = r.getGpuShaderProgram();
+	            if (program == null) {
+	                logger.severe(Renderable.class.getSimpleName() + " skipped. No "
+	                        + GpuShaderProgram.class.getSimpleName() + " set");
+	                continue;
+	            }
+	            if (!((program.getType() == Type.RENDERING) || (program.getType() == Type.SKELETAL_RENDERING))) {
+	            	continue;
+	            }
+	            setRenderStates(r);
+	            final GpuShaderProgram.Context ctx = program.createContext();
+	            ctx.setRenderable(r);
+	            ctx.setViewMatrix(viewMatrix);
+	            if (perspective) {
+		            ctx.setProjectionMatrix(projMatrix);
+	            }
+	            else {
+		            ctx.setProjectionMatrix(orthoProjection);
+	            }
+	            if (r.getCanReceiveShadows()) {
+	            	ctx.setCanReceiveShadows(true);
+	            }
+	            else {
+	            	ctx.setCanReceiveShadows(false);
+	            }
+	            ctx.setLightsList(lightsList);
+	            ctx.setAmbientLight(ambientLight);
+	            ctx.setLightSpaceMatrix(lightSpaceMatrix);
+	
+	            program.bind();
+	            program.fetch(ctx);
+		        gl.glActiveTexture(GL4.GL_TEXTURE5);
+		        gl.glBindTexture(GL4.GL_TEXTURE_2D, depthMap[0]);
+	            drawRenderable(gl, r);
+	            program.unbind();
+	
+	            ctx.notifyDispose();
+	        }
+	        
+	        // Render ITEM_BOX back face
+	        gl.glCullFace(GL4.GL_FRONT);
+	        for (Renderable r : renderQueue) {
+	            GpuShaderProgram program = r.getGpuShaderProgram();
+	            if (program == null) {
+	                logger.severe(Renderable.class.getSimpleName() + " skipped. No "
+	                        + GpuShaderProgram.class.getSimpleName() + " set");
+	                continue;
+	            }
+	            if (!(program.getType() == Type.ITEM_BOX)) {
+	            	continue;
+	            }
+	            setRenderStates(r);
+	            final GpuShaderProgram.Context ctx = program.createContext();
+	            ctx.setRenderable(r);
+	            ctx.setViewMatrix(viewMatrix);
+	            if (perspective) {
+		            ctx.setProjectionMatrix(projMatrix);
+	            }
+	            else {
+		            ctx.setProjectionMatrix(orthoProjection);
+	            }
+	            ctx.setLightsList(lightsList);
+	            ctx.setAmbientLight(ambientLight);
+	            ctx.setLightSpaceMatrix(lightSpaceMatrix);
+	
+	            program.bind();
+	            program.fetch(ctx);
+		        gl.glActiveTexture(GL4.GL_TEXTURE5);
+		        gl.glBindTexture(GL4.GL_TEXTURE_2D, depthMap[0]);
+	            drawRenderable(gl, r);
+	            program.unbind();
+	
+	            ctx.notifyDispose();
+	        }
+	        
+	        // Render ITEM_BOX front face
+	        gl.glCullFace(GL4.GL_BACK);
+	        gl.glEnable(GL4.GL_BLEND);
+	        for (Renderable r : renderQueue) {
+	            GpuShaderProgram program = r.getGpuShaderProgram();
+	            if (program == null) {
+	                logger.severe(Renderable.class.getSimpleName() + " skipped. No "
+	                        + GpuShaderProgram.class.getSimpleName() + " set");
+	                continue;
+	            }
+	            if (!(program.getType() == Type.ITEM_BOX)) {
+	            	continue;
+	            }
+	            setRenderStates(r);
+	            final GpuShaderProgram.Context ctx = program.createContext();
+	            ctx.setRenderable(r);
+	            ctx.setViewMatrix(viewMatrix);
+	            if (perspective) {
+		            ctx.setProjectionMatrix(projMatrix);
+	            }
+	            else {
+		            ctx.setProjectionMatrix(orthoProjection);
+	            }
+	            ctx.setLightsList(lightsList);
+	            ctx.setAmbientLight(ambientLight);
+	            ctx.setLightSpaceMatrix(lightSpaceMatrix);
+	
+	            program.bind();
+	            program.fetch(ctx);
+		        gl.glActiveTexture(GL4.GL_TEXTURE5);
+		        gl.glBindTexture(GL4.GL_TEXTURE_2D, depthMap[0]);
+	            drawRenderable(gl, r);
+	            program.unbind();
+	
+	            ctx.notifyDispose();
+	        }
+	        gl.glDisable(GL4.GL_BLEND);
         }
 
         //--------------
@@ -651,7 +812,6 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
 	        );
 	        gl.glBindFramebuffer(GL4.GL_FRAMEBUFFER, 0);
 	        gl.glUseProgram(debugDepthQuad);
-	        gl.glDisable(GL4.GL_DEPTH_TEST);
 	        gl.glActiveTexture(GL4.GL_TEXTURE0);
 	        gl.glBindTexture(GL4.GL_TEXTURE_2D, depthMap[0]);
 	        gl.glBindVertexArray(quadVAO[0]);
@@ -663,7 +823,6 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
                 viewport.getActualWidth(),
                 viewport.getActualHeight()
             );
-	        gl.glEnable(GL4.GL_DEPTH_TEST);
         }
 
         gl.glUseProgram(0);

@@ -42,6 +42,8 @@ public final class GlslProgramFactory implements GpuShaderProgramFactory {
 	        	return new GlslDepthProgram((GLCanvas) rs.getCanvas());
             case RENDERING:
                 return new GlslRenderingProgram((GLCanvas) rs.getCanvas());
+            case ITEM_BOX:
+                return new GlslItemBoxProgram((GLCanvas) rs.getCanvas());
             case SKYBOX:
                 return new GlslSkyBoxProgram((GLCanvas) rs.getCanvas());
             case SKELETAL_RENDERING:

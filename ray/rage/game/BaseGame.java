@@ -189,6 +189,7 @@ public abstract class BaseGame extends AbstractGame
     @Override
     protected void setupGpuShaderPrograms(RenderSystem rs, ShaderManager sm) throws IOException {
         setupRenderingProgram(rs, sm);
+        setupIemBoxProgram(rs, sm);
         setupSkyBoxProgram(rs, sm);
         setupSkeletalRenderingProgram(rs, sm);
         setupTessProgram(rs, sm);
@@ -217,6 +218,18 @@ public abstract class BaseGame extends AbstractGame
 
         Shader vs = sm.getAssetByPath("renderables.vert");
         Shader fs = sm.getAssetByPath("renderables.frag");
+
+        program.addSourceCode(vs.getSource(), Stage.VERTEX_PROGRAM);
+        program.addSourceCode(fs.getSource(), Stage.FRAGMENT_PROGRAM);
+
+        program.build();
+    }
+    
+    private void setupIemBoxProgram(RenderSystem rs, ShaderManager sm) throws IOException {
+        GpuShaderProgram program = rs.createGpuShaderProgram(GpuShaderProgram.Type.ITEM_BOX);
+
+        Shader vs = sm.getAssetByPath("itembox.vert");
+        Shader fs = sm.getAssetByPath("itembox.frag");
 
         program.addSourceCode(vs.getSource(), Stage.VERTEX_PROGRAM);
         program.addSourceCode(fs.getSource(), Stage.FRAGMENT_PROGRAM);

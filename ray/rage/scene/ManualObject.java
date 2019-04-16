@@ -275,4 +275,6 @@ public interface ManualObject extends SceneObject {
     void setGpuShaderProgram(GpuShaderProgram prog);
 
     void setDepthShaderProgram(GpuShaderProgram prog);
+    
+    void setCanReceiveShadows(Boolean b);
 }

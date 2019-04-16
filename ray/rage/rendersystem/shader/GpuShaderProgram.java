@@ -70,6 +70,8 @@ public interface GpuShaderProgram extends Disposable {
         
         DEPTH, 
         
+        ITEM_BOX,
+        
         FRAMEBUFFER,
     }
 
@@ -317,6 +319,10 @@ public interface GpuShaderProgram extends Disposable {
 		
 		void setViewPos(Vector3 viewPos);
 		void setLightPos(Vector3 lightPos);
+
+		void setCanReceiveShadows(boolean b);
+
+		Boolean getCanReceiveShadows();
     }
 
     /**
