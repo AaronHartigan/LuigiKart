@@ -9,7 +9,9 @@ import java.util.UUID;
 
 import a3.GameState;
 import a3.GhostAvatar;
+import a3.Item;
 import a3.ItemBox;
+import a3.ItemType;
 import a3.Track1;
 import ray.networking.server.GameConnectionServer;
 import ray.networking.server.IClientInfo;
@@ -85,6 +87,11 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			initTrack(trackID);
 			sendTrackMessages(trackID);
 		}
+		else if (messageTokens[0].compareTo("throwItem") == 0) {
+			UUID avatarID = UUID.fromString(messageTokens[1]);
+			GhostAvatar ga = gameState.getGhostAvatars().get(avatarID);
+			ga.removeItem();
+		}
 	}
 
 	private void sendTrackMessages(int trackID) {
@@ -155,18 +162,18 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	}
 
 	private void checkCollisions() {
-		Iterator<Entry<UUID, ItemBox>> itemBoxIter = gameState.getItemBoxes().entrySet().iterator();
-		while (itemBoxIter.hasNext()) {
-			Map.Entry<UUID, ItemBox> itemPair = (Map.Entry<UUID, ItemBox>) itemBoxIter.next();
-			ItemBox itemBox = itemPair.getValue();
-			if (itemBox.getIsActive() == 0 || itemBox.isGrowing() == 1) {
-				continue;
-			}
-			Iterator<Entry<UUID, GhostAvatar>> avatarIter = gameState.getGhostAvatars().entrySet().iterator();
-			while (avatarIter.hasNext()) {
-				Map.Entry<UUID, GhostAvatar> avatarPair = (Map.Entry<UUID, GhostAvatar>) avatarIter.next();
-				
-				GhostAvatar avatar = avatarPair.getValue();
+
+		Iterator<Entry<UUID, GhostAvatar>> avatarIter = gameState.getGhostAvatars().entrySet().iterator();
+		while (avatarIter.hasNext()) {
+			Map.Entry<UUID, GhostAvatar> avatarPair = (Map.Entry<UUID, GhostAvatar>) avatarIter.next();
+			GhostAvatar avatar = avatarPair.getValue();
+			Iterator<Entry<UUID, ItemBox>> itemBoxIter = gameState.getItemBoxes().entrySet().iterator();
+			while (itemBoxIter.hasNext()) {
+				Map.Entry<UUID, ItemBox> itemPair = (Map.Entry<UUID, ItemBox>) itemBoxIter.next();
+				ItemBox itemBox = itemPair.getValue();
+				if (itemBox.getIsActive() == 0 || itemBox.isGrowing() == 1) {
+					continue;
+				}
 				Vector3 ibPos = itemBox.getPos();
 				Vector3 gaPos = avatar.getPos();
 				
@@ -174,11 +181,19 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 					ibPos.x(), ibPos.z(),
 					gaPos.x(), gaPos.z()
 				);
+				// If a player has hit an item box
 				if (dist < 1f) {
 					itemBox.setIsActive(0);
+					if (avatar.hasItem()) {
+						continue;
+					}
+					Item newItem = new Item(ItemType.getRandomItemType());
+					avatar.setItem(newItem);
 	        		try {
-	        			String message = new String("gIB," + itemBox.getId().toString() + ",");
-	        			message += itemBox.getPos().serialize();
+	        			String message = new String(
+	        				"gotItem," +
+    						ItemType.getValue(newItem.getType())
+	        			);
 	        			sendPacket(message, avatar.getId());
 	        		}
 	        		catch (IOException e) {

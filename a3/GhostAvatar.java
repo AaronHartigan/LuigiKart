@@ -9,6 +9,7 @@ import ray.rml.Vector3f;
 
 public class GhostAvatar {
 	private UUID id;
+	private Item item = null;
 	private Vector3 pos = Vector3f.createFrom(0f, 0f, 0f);
 	private Matrix3 rot = Matrix3f.createIdentityMatrix();
 
@@ -38,5 +39,17 @@ public class GhostAvatar {
 
 	public void setRot(Matrix3 rot) {
 		this.rot = rot;
+	}
+	
+	public boolean hasItem() {
+		return (item != null);
+	}
+	
+	public void removeItem() {
+		item = null;
+	}
+	
+	public void setItem(Item item) {
+		this.item = item;
 	}
 }

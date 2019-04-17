@@ -529,7 +529,7 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
         GL4 gl = (GL4) glad.getGL();
         gl.glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 
-        Vector3 lightOffset = Vector3f.createFrom(4f, 2.84f, 1f); // -2.0f, 4.0f, -1.0f
+        Vector3 lightOffset = Vector3f.createFrom(0.5f, 3f, 4f); // -2.0f, 4.0f, -1.0f
         final float BOX_SIZE = 40f;
         final float CLIP_SIZE = 60f;
         Matrix4 lightProjection = Matrix4f.createOrthographicMatrix(-BOX_SIZE, BOX_SIZE, -BOX_SIZE, BOX_SIZE, -CLIP_SIZE, CLIP_SIZE);

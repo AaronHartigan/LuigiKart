@@ -68,6 +68,7 @@ public class MyGame extends VariableFrameRateGame {
 	private int serverPort;
 	private ProtocolType serverProtocol;
 	private ProtocolClient clientProtocol;
+	private Item item = null;
 	private boolean isConnected = false;
 	private boolean isOnGround = true;
 	private float gravity = -10f;
@@ -226,7 +227,7 @@ public class MyGame extends VariableFrameRateGame {
 		);
 		updateGameState();
 		updateItemBoxesRotation();
-		// System.out.println(playerNode.getWorldPosition());
+		//System.out.println(playerNode.getWorldPosition());
 	}
 	
 	
@@ -289,7 +290,7 @@ public class MyGame extends VariableFrameRateGame {
 		// Reduce turn rate if car is moving slowly
 		if (Math.abs(vForward) <= 1f) {
 			if (Math.abs(vForward) <= 0.05f) {
-				turnDegrees /= 5;
+				turnDegrees = 0;
 			}
 			else {
 				turnDegrees *= ((Math.abs(vForward) * 16 / 19) + 3/19);	
@@ -456,7 +457,7 @@ public class MyGame extends VariableFrameRateGame {
 		SceneNode playerAvatarN = dolphinN.createChildSceneNode("playerAvatar");
 		playerNode = dolphinN;
 		playerAvatar = playerAvatarN;
-		dolphinN.translate(-40f, 0, -80f);
+		dolphinN.translate(-45.2f, 0, -89.7f);
 		playerAvatarN.attachObject(dolphinE);
 		//dolphinN.setPhysicsObject(new PhysicsObject());
 
@@ -484,7 +485,7 @@ public class MyGame extends VariableFrameRateGame {
 		lightE.setPrimitive(Primitive.TRIANGLES);
 
 		SceneNode lightN = sm.getRootSceneNode().createChildSceneNode("lightNode");
-		lightN.translate(80f, 100f, 10f);
+		lightN.translate(25f, 150f, 200f);
 		lightN.scale(0.0000001f, 0.0000001f, 0.0000001f);
 		Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
 		mat.setEmissive(Color.WHITE);
@@ -540,6 +541,12 @@ public class MyGame extends VariableFrameRateGame {
 				);
 				im.associateAction(
 					c,
+					Component.Identifier.Key.R,
+					new ThrowItemAction(this),
+					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+				);
+				im.associateAction(
+					c,
 					Component.Identifier.Key.E,
 					new StartDriftingAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
@@ -578,6 +585,18 @@ public class MyGame extends VariableFrameRateGame {
 				);
 				im.associateAction(
 					c,
+					Component.Identifier.Button._2,
+					new ThrowItemAction(this),
+					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Button._3,
+					new ThrowItemAction(this),
+					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+				);
+				im.associateAction(
+					c,
 					Component.Identifier.Axis.X,
 					new TurnLeftRightAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
@@ -611,8 +630,10 @@ public class MyGame extends VariableFrameRateGame {
 		planeN.scale(250, 1, 250);
 
 		plane.getTextureState().setWrapMode(WrapMode.REPEAT_MIRRORED);
-		plane.setTexture(getEngine(), "hexagons.jpeg");
-		plane.setTextureTiling(16);
+		//plane.setTexture(getEngine(), "hexagons.jpeg");
+		//plane.setTextureTiling(16);
+		plane.setTexture(getEngine(), "Track1_texture.png");
+		plane.setTextureTiling(1);
 
 		plane.setHeightMap(getEngine(), "height_map.png");
 		plane.setQuality(8);
@@ -632,12 +653,12 @@ public class MyGame extends VariableFrameRateGame {
 		TextureManager textureMgr = engine.getTextureManager();
 
 		textureMgr.setBaseDirectoryPath(conf.valueOf("assets.skyboxes.path"));
-		Texture front = textureMgr.getAssetByPath("2k_stars_milky_way.jpg");
-		Texture back = textureMgr.getAssetByPath("2k_stars.jpg");
-		Texture left = textureMgr.getAssetByPath("2k_stars.jpg");
-		Texture right = textureMgr.getAssetByPath("2k_stars.jpg");
-		Texture top = textureMgr.getAssetByPath("2k_stars.jpg");
-		Texture bottom = textureMgr.getAssetByPath("2k_stars.jpg");
+		Texture front = textureMgr.getAssetByPath("bluecloud_bk.jpg");
+		Texture back = textureMgr.getAssetByPath("bluecloud_ft.jpg");
+		Texture left = textureMgr.getAssetByPath("bluecloud_lf.jpg");
+		Texture right = textureMgr.getAssetByPath("bluecloud_rt.jpg");
+		Texture top = textureMgr.getAssetByPath("bluecloud_up.jpg");
+		Texture bottom = textureMgr.getAssetByPath("bluecloud_dn.jpg");
 		textureMgr.setBaseDirectoryPath(conf.valueOf("assets.textures.path"));
 
 		SkyBox sb = sm.createSkyBox("SkyBox");
@@ -800,6 +821,48 @@ public class MyGame extends VariableFrameRateGame {
 	
 	public void selectTrack(int trackID) {
 		clientProtocol.selectTrack(trackID);
+	}
+	
+	// We just assume client ALWAYS gets this message from the server
+	// If packet is lost, client will never be able to pick up an item again
+	public void setPlayerItem(int itemType) {
+		item = new Item(ItemType.getType(itemType));
+		UUID id = item.getID();
+		try {
+			SceneManager sm = getEngine().getSceneManager();
+			Entity itemE = sm.createEntity(id.toString(), "banana.obj");
+			// Player avatar has the rotation information
+			SceneNode itemN = playerAvatar.createChildSceneNode(id.toString());
+			itemN.moveBackward(1.1f);
+			itemN.moveDown(0.3f);
+			itemN.scale(0.3f, 0.3f, 0.3f);
+			itemN.attachObject(itemE);
+			// itemN.scale(0.6f, 0.6f, 0.6f);
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void throwItem() {
+		if (hasItem()) {
+			SceneManager sm = getEngine().getSceneManager();
+			SceneNode itemN = sm.getSceneNode(item.getID().toString());
+			SceneNode itemNParent = (SceneNode) itemN.getParent();
+			Vector3 currentPos = itemN.getWorldPosition();
+			itemNParent.detachChild(itemN);
+			sm.getRootSceneNode().attachChild(itemN);
+			float height = getGroundHeight(currentPos.x(), currentPos.z());
+			itemN.setLocalPosition(currentPos.x(), height, currentPos.z());
+			item = null;
+			// Assume server ALWAYS gets this message.
+			// If packet is lost, client will never be able to pick up another item
+			clientProtocol.sendThrowItem();
+		}
+	}
+	
+	public boolean hasItem() {
+		return item != null;
 	}
 	
     @Override

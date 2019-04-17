@@ -91,6 +91,10 @@ public class ProtocolClient extends GameConnectionClient {
 			int trackID = Integer.parseInt(messageTokens[1]);
 			// do something with this later...
 		}
+		else if(messageTokens[0].compareTo("gotItem") == 0) { 
+			int itemID = Integer.parseInt(messageTokens[1]);
+			game.setPlayerItem(itemID);
+		}
 		else if(messageTokens[0].compareTo("wsds") == 0) { 
 			// etc…..
 			// rec. “wants…”
@@ -147,6 +151,16 @@ public class ProtocolClient extends GameConnectionClient {
 	public void selectTrack(int i) {
 		try {
 			String message = "track," + i;
+			sendPacket(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void sendThrowItem() {
+		try {
+			String message = "throwItem," + id.toString();
 			sendPacket(message);
 		}
 		catch (IOException e) {
