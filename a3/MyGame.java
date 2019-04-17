@@ -41,6 +41,7 @@ import java.io.*;
 import java.net.InetAddress;
 import java.rmi.UnknownHostException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map.Entry;
 import java.util.UUID;
 
@@ -73,10 +74,10 @@ public class MyGame extends VariableFrameRateGame {
 	private boolean isAccelerating = false;
 	private boolean isDeccelerating = false;
 	private boolean isBraking = false;
-	private float accelerationRate = 10f;
+	private float accelerationRate = 20f;
 	private float deccelerationRate = -15f;
 	private float MAX_BASE_SPEED = 20f;
-	private float roadFriction = 5f;
+	private float roadFriction = 10f;
 	private float vForward = 0f; // forward velicty
 	private float vUp = 0f; // upward velocity
 	private float currentPitch = 0f;
@@ -143,13 +144,13 @@ public class MyGame extends VariableFrameRateGame {
 		createGroundPlane(sm);
 		createDolphinWithCamera(sm);
 		createBanana(sm);
-		createItemBox(sm);
 
 		setupInputs();
 		createSkyBox(eng, sm);
 
 		setupAmbientLight(sm);
 		setupPointLight(sm);
+		selectTrack(1);
 	}
 
 	private void setupNetworking() {
@@ -215,7 +216,8 @@ public class MyGame extends VariableFrameRateGame {
 			this.getPlayerRotation()
 		);
 		updateGameState();
-		updateItemBoxQuestionMarkRotation();
+		updateItemBoxesRotation();
+		// System.out.println(playerNode.getWorldPosition());
 	}
 	
 	
@@ -319,7 +321,7 @@ public class MyGame extends VariableFrameRateGame {
 		if (isOnGround && (currentHeight - groundHeight) < 0.2f) {
 			currentHeight = groundHeight;
 		}
-		// If falling, update currentHeight with gravity
+		// If falling, update currentHeight with gravityd
 		if (currentHeight > groundHeight) {
 			isOnGround = false;
 			vUp += gravity * elapsedSec;
@@ -327,8 +329,15 @@ public class MyGame extends VariableFrameRateGame {
 		}
 		// Must check if gravity has put us below ground (or going uphill)
 		if (currentHeight < groundHeight) {
-			isOnGround = true;
-			vUp = 0;
+			// if we were falling with enough speed, bounce
+			if (!isOnGround && Math.abs(vUp) > 5f) {
+				vUp = Math.abs(vUp) / 10;
+			}
+			// If we are too slow, just be on the ground
+			else {
+				vUp = 0;
+				isOnGround = true;
+			}
 			currentHeight = groundHeight;
 		}
 		playerNode.setLocalPosition(lp.x(), currentHeight, lp.z());
@@ -372,54 +381,41 @@ public class MyGame extends VariableFrameRateGame {
 		bananaN.translate(0f, height, 0f);
 		bananaN.scale(0.3f, 0.3f, 0.3f);
 	}
-	
-	protected void createItemBox(SceneManager sm) throws IOException {		
-		Entity itemBoxE = sm.createEntity("itembox", "itembox.obj");
-		SceneNode itemBoxN = sm.getRootSceneNode().createChildSceneNode(itemBoxE.getName() + "Node");
-		SceneNode itemBoxRotator = itemBoxN.createChildSceneNode(itemBoxE.getName() + "Rotator");
-		itemBoxE.setGpuShaderProgram(sm.getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.ITEM_BOX));
-		itemBoxRotator.attachObject(itemBoxE);
-		Vector3 lp = itemBoxN.getLocalPosition();
-		float height = getGroundHeight(lp.x(), lp.z());
-		itemBoxN.translate(-5f, height + 1f, 0f);
-		itemBoxN.scale(0.6f, 0.6f, 0.6f);
-		
-		Entity questionMarkBodyE = sm.createEntity("questionmarkbody", "questionmarkbody.obj");
-		questionMarkBodyE.setCanReceiveShadows(false);
-		SceneNode questionMarkBodyN = itemBoxN.createChildSceneNode(questionMarkBodyE.getName() + "Node");
-		questionMarkBodyN.attachObject(questionMarkBodyE);
-		questionMarkBodyN.scale(0.5f, 0.5f, 0.5f);
-		questionMarkBodyN.translate(0f, 0.2f, 0f);
-		
-		Entity questionMarkDotE = sm.createEntity("questionmarkdot", "questionmarkdot.obj");
-		questionMarkDotE.setCanReceiveShadows(false);
-		SceneNode questionMarkDotN = itemBoxN.createChildSceneNode(questionMarkDotE.getName() + "Node");
-		questionMarkDotN.attachObject(questionMarkDotE);
-		questionMarkDotN.scale(0.5f, 0.5f, 0.5f);
-		questionMarkDotN.translate(0f, -0.8f, 0f);
 
-		RotationController verticalRotation = new RotationController(Vector3f.createUnitVectorX(), 0.04f);
-		RotationController horizontalRotation = new RotationController(Vector3f.createUnitVectorY(), 0.07f);
-		verticalRotation.addNode(itemBoxRotator);
-		horizontalRotation.addNode(itemBoxRotator);
-		sm.addController(verticalRotation);
-		sm.addController(horizontalRotation);
-	}
+	protected void updateItemBoxesRotation() {
+		SceneManager sm = getEngine().getSceneManager();
+		for (HashMap.Entry<UUID, ItemBox> entry : gameState.getItemBoxes().entrySet()) {
+			UUID id = entry.getKey();
+			
+			SceneNode itemBoxN = sm.getSceneNode(id.toString());
+			ItemBox itemBox = entry.getValue();
+			Vector3 lp = itemBoxN.getLocalPosition();
+			if (itemBox.getIsActive() == 0) {
+				itemBoxN.setLocalPosition(-1000000f, lp.y(), lp.z());
+			}
+			else {
+				itemBoxN.setLocalPosition(itemBox.getPos().x(), lp.y(), lp.z());
+			}
 
-	protected void updateItemBoxQuestionMarkRotation() {
-		SceneNode questionmarkbody = getEngine().getSceneManager().getSceneNode("questionmarkbodyNode");
-		SceneNode questionmarkdot = getEngine().getSceneManager().getSceneNode("questionmarkdotNode");
-		SceneNode cameraNode = getEngine().getSceneManager().getSceneNode("dolphinNodeCamera");
-		Vector3 qmWP = questionmarkbody.getWorldPosition();
-		Vector3 cWP = cameraNode.getWorldPosition();
-		float angle = (float) Math.toDegrees(Math.atan((qmWP.x() - cWP.x())/(qmWP.z() - cWP.z())));
-		if (qmWP.z() > cWP.z()) {
-			angle += 180f;
+			float scale = entry.getValue().scaleFactor();
+			itemBoxN.setLocalScale(scale * 0.6f, scale * 0.6f, scale * 0.6f);
+			
+			SceneNode questionmarkbody = sm.getSceneNode(id.toString() + "questionmarkbody");
+			SceneNode questionmarkdot = sm.getSceneNode(id.toString() + "questionmarkdot");
+			SceneNode cameraNode = sm.getSceneNode("dolphinNodeCamera");
+			
+			Vector3 qmWP = questionmarkbody.getWorldPosition();
+			Vector3 cWP = cameraNode.getWorldPosition();
+			float angle = (float) Math.toDegrees(Math.atan((qmWP.x() - cWP.x())/(qmWP.z() - cWP.z())));
+			if (qmWP.z() > cWP.z()) {
+				angle += 180f;
+			}
+			
+			questionmarkbody.setLocalRotation(Matrix3f.createIdentityMatrix());
+			questionmarkbody.yaw(Degreef.createFrom(angle));
+			questionmarkdot.setLocalRotation(Matrix3f.createIdentityMatrix());
+			questionmarkdot.yaw(Degreef.createFrom(angle));
 		}
-		questionmarkbody.setLocalRotation(Matrix3f.createIdentityMatrix());
-		questionmarkbody.yaw(Degreef.createFrom(angle));
-		questionmarkdot.setLocalRotation(Matrix3f.createIdentityMatrix());
-		questionmarkdot.yaw(Degreef.createFrom(angle));
 	}
 
 	protected void createDolphinWithCamera(SceneManager sm) throws IOException {
@@ -675,6 +671,61 @@ public class MyGame extends VariableFrameRateGame {
 			ghostN.setLocalRotation(entry.getValue().getRot());
 		}
 	}
+
+	public void createItemBox(UUID id, Vector3 pos) {
+		try {
+			SceneManager sm = getEngine().getSceneManager();
+			Entity itemBoxE = sm.createEntity(id.toString(), "itembox.obj");
+			SceneNode itemBoxN = sm.getRootSceneNode().createChildSceneNode(id.toString());
+			SceneNode itemBoxRotator = itemBoxN.createChildSceneNode(itemBoxE.getName() + "Rotator");
+			itemBoxE.setGpuShaderProgram(sm.getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.ITEM_BOX));
+			itemBoxRotator.attachObject(itemBoxE);
+			float height = getGroundHeight(pos.x(), pos.z());
+			itemBoxN.translate(pos.x(), height + pos.y(), pos.z());
+			itemBoxN.scale(0.6f, 0.6f, 0.6f);
+			
+			Entity questionMarkBodyE = sm.createEntity(id.toString() + "questionmarkbody", "questionmarkbody.obj");
+			questionMarkBodyE.setCanReceiveShadows(false);
+			SceneNode questionMarkBodyN = itemBoxN.createChildSceneNode(id.toString() + "questionmarkbody");
+			questionMarkBodyN.attachObject(questionMarkBodyE);
+			questionMarkBodyN.scale(0.5f, 0.5f, 0.5f);
+			questionMarkBodyN.translate(0f, 0.2f, 0f);
+			
+			Entity questionMarkDotE = sm.createEntity(id.toString() + "questionmarkdot", "questionmarkdot.obj");
+			questionMarkDotE.setCanReceiveShadows(false);
+			SceneNode questionMarkDotN = itemBoxN.createChildSceneNode(id.toString() + "questionmarkdot");
+			questionMarkDotN.attachObject(questionMarkDotE);
+			questionMarkDotN.scale(0.5f, 0.5f, 0.5f);
+			questionMarkDotN.translate(0f, -0.8f, 0f);
+	
+			RotationController verticalRotation = new RotationController(Vector3f.createUnitVectorX(), 0.04f);
+			RotationController horizontalRotation = new RotationController(Vector3f.createUnitVectorY(), 0.07f);
+			verticalRotation.addNode(itemBoxRotator);
+			horizontalRotation.addNode(itemBoxRotator);
+			sm.addController(verticalRotation);
+			sm.addController(horizontalRotation);
+			
+			gameState.createItemBox(id, pos);
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void updateItemBox(UUID id, Vector3 pos, int isActive, int isGrowing, long growthTimer) {
+		try {
+			SceneManager sm = getEngine().getSceneManager();
+			if (!sm.hasSceneNode(id.toString())) {
+				System.out.println("Item Box does not exist.  Creating: " + id.toString());
+				createItemBox(id, pos);
+				return;
+			}
+			gameState.updateItemBox(id, pos, isActive, isGrowing, growthTimer);
+		}
+		catch (RuntimeException e) {
+			e.printStackTrace();
+		}
+	}
 	
 	public void removeGhostAvatar(UUID ghostID) {
 		try {
@@ -685,6 +736,10 @@ public class MyGame extends VariableFrameRateGame {
 		catch (Exception e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public void selectTrack(int trackID) {
+		clientProtocol.selectTrack(trackID);
 	}
 	
     @Override
@@ -730,5 +785,4 @@ public class MyGame extends VariableFrameRateGame {
 	protected float getMaxReverseSpeed() {
 		return -getMaxSpeed() / 4;
 	}
-
 }

@@ -59,7 +59,7 @@ public class ProtocolClient extends GameConnectionClient {
 			game.createGhostAvatar(ghostID, ghostPosition);
 		}
 		else if(messageTokens[0].compareTo("update") == 0) { // etc…..
-			// format: update, remoteId, x,y,z
+			// format: update, remoteId, x,y,z, rot
 			UUID ghostID = UUID.fromString(messageTokens[1]);
 			Vector3 ghostPosition = Vector3f.createFrom(
 				messageTokens[2],
@@ -72,6 +72,24 @@ public class ProtocolClient extends GameConnectionClient {
 			}
 			Matrix3 ghostRotation = Matrix3f.createFrom(floats);
 			game.updateGhostAvatar(ghostID, ghostPosition, ghostRotation);
+		}
+		else if(messageTokens[0].compareTo("uIB") == 0) {
+			// Update ItemBox
+			// format: uIB, remoteId, x,y,z, isActive
+			UUID id = UUID.fromString(messageTokens[1]);
+			Vector3 pos = Vector3f.createFrom(
+				messageTokens[2],
+				messageTokens[3],
+				messageTokens[4]
+			);
+			int isActive = Integer.parseInt(messageTokens[5]);
+			int isGrowing = Integer.parseInt(messageTokens[6]);
+			long growthTimer = Long.parseLong(messageTokens[7]);
+			game.updateItemBox(id, pos, isActive, isGrowing, growthTimer);
+		}
+		else if(messageTokens[0].compareTo("track") == 0) { 
+			int trackID = Integer.parseInt(messageTokens[1]);
+			// do something with this later...
 		}
 		else if(messageTokens[0].compareTo("wsds") == 0) { 
 			// etc…..
@@ -119,6 +137,16 @@ public class ProtocolClient extends GameConnectionClient {
 	public void sendByeMessage() {
 		try {
 			String message = "bye," + id.toString();
+			sendPacket(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void selectTrack(int i) {
+		try {
+			String message = "track," + i;
 			sendPacket(message);
 		}
 		catch (IOException e) {

@@ -80,7 +80,9 @@ class GlslItemBoxProgram extends AbstractGlslProgram {
     private GlslProgramUniformVec3         lightPos;
     private GlslProgramUniformVec3         viewPos;
     
-    private float MOVE_SPEED = 0.0005f;
+    private long timeMS = System.currentTimeMillis();
+    private long dTime = 0;
+    private float MOVE_SPEED_MODIFIER = 0.0001f;
     private float moveFactor = 0;
 
     public GlslItemBoxProgram(GLCanvas canvas) {
@@ -102,9 +104,12 @@ class GlslItemBoxProgram extends AbstractGlslProgram {
         final Matrix4 view = ctx.getViewMatrix();
         final Matrix4 proj = ctx.getProjectionMatrix();
         final Matrix4 lightSpace = ctx.getLightSpaceMatrix();
-        
-        moveFactor += MOVE_SPEED;
+
+        long currentTimeMS = System.currentTimeMillis();
+        dTime = currentTimeMS - timeMS;
+        moveFactor += dTime * MOVE_SPEED_MODIFIER;
         moveFactor %= 1;
+        timeMS = currentTimeMS;
         textureMoveFactor.set(moveFactor);
 
         setRenderable(r);

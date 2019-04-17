@@ -220,13 +220,20 @@ void main()
 	while (tx > 1) {
 		tx -= 1;
 	}
+	tx = clamp(tx, 0.01f, 0.99f);
 	float ty = fs_in.vertex_texcoord.y;
     fragment = texture2D(texture_sampler, vec2(tx, ty)) * effect;
 	if (gl_FrontFacing) {
-		fragment.w = 0.5;
+		if (ty < 0.3) {
+			fragment = fragment * 1.1;
+			fragment.w = 0.7;
+		}
+		else {
+			fragment.w = 0.5;
+		}
 	}
-	else {
+	else if (ty < 0.3) {
+		fragment = fragment * 0.8;
 		fragment.w = 1.0;
 	}
-	//fragment = vec4(vec3(depth), 1.0);
 }

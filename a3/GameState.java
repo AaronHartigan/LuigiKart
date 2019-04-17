@@ -1,21 +1,23 @@
 package a3;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import ray.rml.Matrix3;
 import ray.rml.Vector3;
 
 public class GameState {
-	private HashMap<UUID, GhostAvatar> ghostAvatars = new HashMap<UUID, GhostAvatar>();
-	private HashMap<UUID, GhostAvatar> staticObjects;
+	private Map<UUID, GhostAvatar> ghostAvatars = Collections.synchronizedMap(new HashMap<UUID, GhostAvatar>());
+	private Map<UUID, ItemBox> itemBoxes = Collections.synchronizedMap(new HashMap<UUID, ItemBox>());
 	private HashMap<UUID, GhostAvatar> dynamicObjects;
 	
 	public GameState() {
 		
 	}
 
-	public HashMap<UUID, GhostAvatar> getGhostAvatars() {
+	public Map<UUID, GhostAvatar> getGhostAvatars() {
 		return ghostAvatars;
 	}
 
@@ -23,12 +25,23 @@ public class GameState {
 		this.ghostAvatars = ghostAvatars;
 	}
 
-	public HashMap<UUID, GhostAvatar> getStaticObjects() {
-		return staticObjects;
+	public Map<UUID, ItemBox> getItemBoxes() {
+		return itemBoxes;
 	}
 
-	public void setStaticObjects(HashMap<UUID, GhostAvatar> staticObjects) {
-		this.staticObjects = staticObjects;
+	public void setItemBoxes(HashMap<UUID, ItemBox> itemBoxes) {
+		this.itemBoxes = itemBoxes;
+	}
+	
+	public void createItemBox(UUID id, Vector3 pos) {
+		itemBoxes.put(id, new ItemBox(id, pos));
+	}
+	
+	public void updateItemBox(UUID id, Vector3 pos, int isActive, int isGrowing, long growthTimer) {
+		itemBoxes.get(id).setPos(pos);
+		itemBoxes.get(id).setIsActive(isActive);
+		itemBoxes.get(id).setIsGrowing(isGrowing);
+		itemBoxes.get(id).setGrowthTimer(growthTimer);
 	}
 
 	public HashMap<UUID, GhostAvatar> getDynamicObjects() {
