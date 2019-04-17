@@ -76,8 +76,15 @@ public class MyGame extends VariableFrameRateGame {
 	private boolean isBraking = false;
 	private float accelerationRate = 20f;
 	private float deccelerationRate = -15f;
+	private float TURN_RATE = 50f;
+	private float DRIFTING_TURN_RATE = 75f;
+	private boolean isDrifting = false;
+	private float driftingDirection = 0f;
 	private float MAX_BASE_SPEED = 20f;
 	private float roadFriction = 10f;
+	private float desiredTurn = 0f;
+	private float desiredTurnRollingAverage = 0f;
+	private float actualTurn = 0f;
 	private float vForward = 0f; // forward velicty
 	private float vUp = 0f; // upward velocity
 	private float currentPitch = 0f;
@@ -203,6 +210,8 @@ public class MyGame extends VariableFrameRateGame {
 		processNetworking(elapsTime);
 		setAccelerating(false);
 		setDeccelerating(false);
+		setDrifting(false);
+		setDesiredTurn(0f);
 		im.update(elapsTime);
 		updateHUD(engine, elapsTime);
 		updatePlayerPhysics(elapsTime);
@@ -271,6 +280,24 @@ public class MyGame extends VariableFrameRateGame {
 		float elapsedSec = elapsedMS / 1000;
 		Vector3 lp = playerNode.getLocalPosition();
 		Vector3 fv = playerAvatar.getWorldForwardAxis();
+		
+		// Handle turning
+		desiredTurnRollingAverage = desiredTurnRollingAverage * 0.9f + getDesiredTurn() * 0.1f;
+		float dTurn = desiredTurnRollingAverage - actualTurn;
+		actualTurn += dTurn / 6;
+		float turnDegrees = actualTurn * elapsedSec * getTurnRate();
+		// Reduce turn rate if car is moving slowly
+		if (Math.abs(vForward) <= 1f) {
+			if (Math.abs(vForward) <= 0.05f) {
+				turnDegrees /= 5;
+			}
+			else {
+				turnDegrees *= ((Math.abs(vForward) * 16 / 19) + 3/19);	
+			}
+		}
+		if (isOnGround) {
+			playerNode.yaw(Degreef.createFrom(turnDegrees));
+		}
 
 		// Handle forward movement
 		if (isOnGround) {
@@ -281,7 +308,11 @@ public class MyGame extends VariableFrameRateGame {
 			if (isDeccelerating()) {
 				vForward += deccelerationRate * elapsedSec;
 			}
-			if (!isAccelerating() && !isDeccelerating() && Math.abs(vForward) < 0.1f) {
+			if (
+				(!isAccelerating() && !isDeccelerating()
+				|| isAccelerating() && isDeccelerating())
+				&& Math.abs(vForward) < 0.05f
+			) {
 				// Clamp to prevent small movement when player should be stationary
 				vForward = 0f;
 			}
@@ -475,7 +506,6 @@ public class MyGame extends VariableFrameRateGame {
 	// Setup all inputs (keyboard and controller) needed for the game
 	protected void setupInputs() {
 		ArrayList<Controller> controllers = im.getControllers();
-		SceneNode dolphin = getEngine().getSceneManager().getSceneNode("dolphinNode");
 		for (Controller c : controllers) {
 			if (c.getType() == Controller.Type.KEYBOARD) {
 				im.associateAction(
@@ -493,13 +523,25 @@ public class MyGame extends VariableFrameRateGame {
 				im.associateAction(
 					c,
 					Component.Identifier.Key.A,
-					new RotateNodeLeftAction(dolphin, this),
+					new TurnLeftAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 				im.associateAction(
 					c,
 					Component.Identifier.Key.D,
-					new RotateNodeRightAction(dolphin, this),
+					new TurnRightAction(this),
+					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Key.Q,
+					new StartDriftingAction(this),
+					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Key.E,
+					new StartDriftingAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 				im.associateAction(
@@ -524,20 +566,38 @@ public class MyGame extends VariableFrameRateGame {
 			else if (c.getType() == Controller.Type.GAMEPAD || c.getType() == Controller.Type.STICK) {
 				im.associateAction(
 					c,
-					Component.Identifier.Axis.Y,
-					new MoveNodeForwardBackwardDeviceAction(dolphin, this),
+					Component.Identifier.Button._0,
+					new StartAccelerationAction(this),
+					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Button._1,
+					new StartDeccelerationAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 				im.associateAction(
 					c,
 					Component.Identifier.Axis.X,
-					new MoveNodeLeftRightDeviceAction(dolphin, this),
+					new TurnLeftRightAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 				im.associateAction(
 					c,
-					Component.Identifier.Axis.RX,
-					new RotateNodeLeftRightDeviceAction(dolphin, this),
+					Component.Identifier.Button._5,
+					new StartDriftingAction(this),
+					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Button._6,
+					new StartDriftingAction(this),
+					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Axis.Z,
+					new StartDriftingDeviceAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 			}
@@ -784,5 +844,48 @@ public class MyGame extends VariableFrameRateGame {
 	
 	protected float getMaxReverseSpeed() {
 		return -getMaxSpeed() / 4;
+	}
+	
+	protected float getTurnRate() {
+		float direction = 1f;
+		if (vForward < 0) {
+			direction = -1f;
+		}
+		if (isDrifting()) {
+			return direction * DRIFTING_TURN_RATE;
+		}
+		return direction * TURN_RATE;
+	}
+
+	public float getDesiredTurn() {
+		return desiredTurn;
+	}
+
+	public void setDesiredTurn(float desiredTurn) {
+		this.desiredTurn = desiredTurn;
+	}
+
+	public float getActualTurn() {
+		return actualTurn;
+	}
+
+	public void setActualTurn(float actualTurn) {
+		this.actualTurn = actualTurn;
+	}
+	
+	public float getDriftingDirection() {
+		return driftingDirection;
+	}
+
+	public void setDriftingDirection(float driftingDirection) {
+		this.driftingDirection = driftingDirection;
+	}
+
+	public boolean isDrifting() {
+		return isDrifting;
+	}
+
+	public void setDrifting(boolean isDrifting) {
+		this.isDrifting = isDrifting;
 	}
 }
