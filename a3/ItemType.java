@@ -8,7 +8,7 @@ public enum ItemType {
     ;
 	
 	public static int getValue(ItemType type) {
-			return type.ordinal();
+		return type.ordinal();
 	}
 	
 	public static ItemType getType(int type) {

@@ -230,7 +230,7 @@ public class MyGame extends VariableFrameRateGame {
 			this.getPlayerRotation()
 		);
 		updatePlayerItem();
-		updateGameState();
+		updateGameStateDisplay();
 		updateItemBoxesRotation();
 		//System.out.println(playerNode.getWorldPosition());
 	}
@@ -755,12 +755,17 @@ public class MyGame extends VariableFrameRateGame {
 		}
 	}
 	
-	public void updateGameState() {
+	public void updateGameStateDisplay() {
 		SceneManager sm = getEngine().getSceneManager();
 		for (Entry<UUID, GhostAvatar> entry : gameState.getGhostAvatars().entrySet()) {
 			SceneNode ghostN = sm.getSceneNode(entry.getKey().toString());
 			ghostN.setLocalPosition(entry.getValue().getPos());
 			ghostN.setLocalRotation(entry.getValue().getRot());
+		}
+		for (Entry<UUID, Item> entry : gameState.getItems().entrySet()) {
+			SceneNode itemN = sm.getSceneNode(entry.getKey().toString());
+			itemN.setLocalPosition(entry.getValue().getPos());
+			itemN.setLocalRotation(entry.getValue().getRot());
 		}
 	}
 
@@ -830,10 +835,12 @@ public class MyGame extends VariableFrameRateGame {
 		itemN.setLocalRotation(playerAvatar.getWorldRotation());
 		itemN.moveBackward(1.1f);
 		itemN.moveDown(0.3f);
+		gameState.updateItem(item.getID(), itemN.getWorldPosition(), itemN.getWorldRotation());
 		clientProtocol.updateItem(
 			item.getID(),
 			itemN.getWorldPosition(),
-			itemN.getWorldRotation()
+			itemN.getWorldRotation(),
+			item.getType()
 		);
 	}
 	
@@ -854,18 +861,25 @@ public class MyGame extends VariableFrameRateGame {
 	
 	// We just assume client ALWAYS gets this message from the server
 	// If packet is lost, client will never be able to pick up an item again
+	float BANANA_SCALE = 0.4f;
 	public void setPlayerItem(UUID itemID, int itemType) {
+		item = createItem(itemID, itemType);
+	}
+	
+	public Item createItem(UUID itemID, int itemType) {
 		try {
 			SceneManager sm = getEngine().getSceneManager();
 			Entity itemE = sm.createEntity(itemID.toString(), "banana.obj");
-			// Player avatar has the rotation information
 			SceneNode itemN = sm.getRootSceneNode().createChildSceneNode(itemID.toString());
-			item = new Item(itemID, ItemType.getType(itemType));
-			itemN.scale(0.4f, 0.4f, 0.4f);
+			itemN.scale(BANANA_SCALE, BANANA_SCALE, BANANA_SCALE);
 			itemN.attachObject(itemE);
+			Item newItem = new Item(itemID, ItemType.getType(itemType));
+			gameState.getItems().put(itemID, newItem);
+			return newItem;
 		}
 		catch (Exception e) {
 			e.printStackTrace();
+			return null;
 		}
 	}
 
@@ -883,7 +897,6 @@ public class MyGame extends VariableFrameRateGame {
 			// Assume server ALWAYS gets this message.
 			// If packet is lost, client will never be able to pick up another item
 			clientProtocol.sendThrowItem();
-			// gameState.getItems().add(item.getID());  Don't need to track this in gamestate?
 		}
 	}
 	
@@ -893,10 +906,13 @@ public class MyGame extends VariableFrameRateGame {
 	}
 
 	public void removeItem(UUID itemID) {
+		if (hasItem() && itemID.equals(item.getID())) {
+			item = null;
+		}
 		try {
 			SceneManager sm = getEngine().getSceneManager();
 			sm.destroySceneNode(itemID.toString());
-			// gameState.getItems().remove(itemID); // Don't need to track this in gamestate?
+			gameState.getItems().remove(itemID);
 		}
 		catch (Exception e) {
 			e.printStackTrace();
@@ -1055,5 +1071,20 @@ public class MyGame extends VariableFrameRateGame {
 
 	private void setTurningDisabledTimer(float turningDisabledTimer) {
 		this.turningDisabledTimer = turningDisabledTimer;
+	}
+
+	public void updateItem(UUID itemID, Vector3 itemPos, Matrix3 itemRot, int itemType) {
+		try {
+			SceneManager sm = getEngine().getSceneManager();
+			if (!sm.hasSceneNode(itemID.toString())) {
+				System.out.println("Item does not exist.  Creating: " + itemID.toString());
+				createItem(itemID, itemType);
+				return;
+			}
+			gameState.updateItem(itemID, itemPos, itemRot);
+		}
+		catch (RuntimeException e) {
+			e.printStackTrace();
+		}
 	}
 }

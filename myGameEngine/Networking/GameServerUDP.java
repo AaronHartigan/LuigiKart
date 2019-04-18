@@ -158,6 +158,22 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
         			e.printStackTrace();
         		}
             }
+            Iterator<Entry<UUID, Item>> itemIter = gameState.getItems().entrySet().iterator();
+            while (itemIter.hasNext()) {
+                Map.Entry<UUID, Item> pair = (Map.Entry<UUID, Item>) itemIter.next();
+                UUID id = pair.getKey();
+                Item item = pair.getValue();
+        		try {
+        			String message = new String("itemUpdate," + id.toString() + ",");
+        			message += item.getPos().serialize();
+        			message += "," + item.getRot().serialize();
+        			message += "," + ItemType.getValue(item.getType());
+        			forwardPacketToAll(message, id);
+        		}
+        		catch (IOException e) {
+        			e.printStackTrace();
+        		}
+            }
     		try {
     			Thread.sleep(Math.max(0, (1000 / TICK_RATE) - elapsedTime));
     		} catch (InterruptedException e) {
@@ -235,6 +251,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 				// System.out.println(dist);
 				// If a player has hit an item
 				if (dist < 1f) {
+					removeItemFromAvatar(item.getID());
 	        		try {
 	        			String message = new String(
 	        				"hitItem," + avatar.getId() + "," + item.getID()
@@ -246,6 +263,17 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	        		}
 	        		itemsIter.remove();
 				}
+			}
+		}
+	}
+	
+	protected void removeItemFromAvatar(UUID itemID) {
+		Iterator<Entry<UUID, GhostAvatar>> avatarIter = gameState.getGhostAvatars().entrySet().iterator();
+		while (avatarIter.hasNext()) {
+			Map.Entry<UUID, GhostAvatar> avatarPair = (Map.Entry<UUID, GhostAvatar>) avatarIter.next();
+			GhostAvatar avatar = avatarPair.getValue();
+			if (avatar.hasItem() && avatar.getItem().getID().equals(itemID)) {
+				avatar.removeItem();
 			}
 		}
 	}

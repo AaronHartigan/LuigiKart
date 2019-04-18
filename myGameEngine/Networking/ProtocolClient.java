@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.UUID;
 
+import a3.ItemType;
 import a3.MyGame;
 import ray.networking.client.GameConnectionClient;
 import ray.rml.Matrix3;
@@ -104,6 +105,21 @@ public class ProtocolClient extends GameConnectionClient {
 			}
 			game.removeItem(itemID);
 		}
+		else if(messageTokens[0].compareTo("itemUpdate") == 0) { 
+			UUID itemID = UUID.fromString(messageTokens[1]);
+			Vector3 itemPos = Vector3f.createFrom(
+				messageTokens[2],
+				messageTokens[3],
+				messageTokens[4]
+			);
+			float[] floats = new float[9];
+			for (int i = 0; i < 9; i++){
+			    floats[i] = Float.parseFloat(messageTokens[i + 5]);
+			}
+			Matrix3 itemRot = Matrix3f.createFrom(floats);
+			int itemType = Integer.parseInt(messageTokens[14]);
+			game.updateItem(itemID, itemPos, itemRot, itemType);
+		}
 		else if(messageTokens[0].compareTo("wsds") == 0) { 
 			// etc…..
 			// rec. “wants…”
@@ -177,11 +193,12 @@ public class ProtocolClient extends GameConnectionClient {
 		}
 	}
 
-	public void updateItem(UUID itemID, Vector3 itemPos, Matrix3 itemRot) {
+	public void updateItem(UUID itemID, Vector3 itemPos, Matrix3 itemRot, ItemType type) {
 		try {
 			String message = new String("updateItem," + itemID.toString());
 			message += "," + itemPos.x()+"," + itemPos.y() + "," + itemPos.z();
 			message += "," + itemRot.serialize();
+			message += "," + ItemType.getValue(type);
 			sendPacket(message);
 		}
 		catch (IOException e) {
