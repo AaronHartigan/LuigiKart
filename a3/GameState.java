@@ -11,7 +11,7 @@ import ray.rml.Vector3;
 public class GameState {
 	private Map<UUID, GhostAvatar> ghostAvatars = Collections.synchronizedMap(new HashMap<UUID, GhostAvatar>());
 	private Map<UUID, ItemBox> itemBoxes = Collections.synchronizedMap(new HashMap<UUID, ItemBox>());
-	private HashMap<UUID, GhostAvatar> dynamicObjects;
+	private Map<UUID, Item> items =  Collections.synchronizedMap(new HashMap<UUID, Item>());
 	
 	public GameState() {
 		
@@ -44,12 +44,12 @@ public class GameState {
 		itemBoxes.get(id).setGrowthTimer(growthTimer);
 	}
 
-	public HashMap<UUID, GhostAvatar> getDynamicObjects() {
-		return dynamicObjects;
+	public Map<UUID, Item> getItems() {
+		return items;
 	}
 
-	public void setDynamicObjects(HashMap<UUID, GhostAvatar> dynamicObjects) {
-		this.dynamicObjects = dynamicObjects;
+	public void setItems(HashMap<UUID, Item> items) {
+		this.items = items;
 	}
 	
 	public void createGhostAvatar(UUID ghostID, Vector3 ghostPosition) {
@@ -63,5 +63,10 @@ public class GameState {
 	
 	public void removeGhostAvatar(UUID ghostID) {
 		ghostAvatars.remove(ghostID);
+	}
+
+	public void updateItem(UUID itemID, Vector3 itemPos, Matrix3 itemRot) {
+		items.get(itemID).setPos(itemPos);
+		items.get(itemID).setRot(itemRot);
 	}
 }

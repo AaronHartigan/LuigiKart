@@ -18,6 +18,11 @@ public class Item {
 		setID(UUID.randomUUID());
 	}
 	
+	public Item(UUID itemID, ItemType type) {
+		this.type = type;
+		this.ID = itemID;
+	}
+
 	public UUID getID() {
 		return ID;
 	}

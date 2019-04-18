@@ -92,8 +92,17 @@ public class ProtocolClient extends GameConnectionClient {
 			// do something with this later...
 		}
 		else if(messageTokens[0].compareTo("gotItem") == 0) { 
-			int itemID = Integer.parseInt(messageTokens[1]);
-			game.setPlayerItem(itemID);
+			UUID itemID = UUID.fromString(messageTokens[1]);
+			int itemType = Integer.parseInt(messageTokens[2]);
+			game.setPlayerItem(itemID, itemType);
+		}
+		else if(messageTokens[0].compareTo("hitItem") == 0) { 
+			UUID playerID = UUID.fromString(messageTokens[1]);
+			UUID itemID = UUID.fromString(messageTokens[2]);
+			if (playerID.equals(id)) {
+				game.handlePlayerHitItem(itemID);
+			}
+			game.removeItem(itemID);
 		}
 		else if(messageTokens[0].compareTo("wsds") == 0) { 
 			// etc…..
@@ -161,6 +170,18 @@ public class ProtocolClient extends GameConnectionClient {
 	public void sendThrowItem() {
 		try {
 			String message = "throwItem," + id.toString();
+			sendPacket(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void updateItem(UUID itemID, Vector3 itemPos, Matrix3 itemRot) {
+		try {
+			String message = new String("updateItem," + itemID.toString());
+			message += "," + itemPos.x()+"," + itemPos.y() + "," + itemPos.z();
+			message += "," + itemRot.serialize();
 			sendPacket(message);
 		}
 		catch (IOException e) {

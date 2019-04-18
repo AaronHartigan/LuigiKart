@@ -64,6 +64,7 @@ public class MyGame extends VariableFrameRateGame {
 	private long lastScriptModifiedTime = 0;
 	private SceneNode playerNode = null;
 	private SceneNode playerAvatar = null;
+	private SceneNode playerAvatarRotator = null;
 	private String serverAddr;
 	private int serverPort;
 	private ProtocolType serverProtocol;
@@ -78,6 +79,10 @@ public class MyGame extends VariableFrameRateGame {
 	private float accelerationRate = 20f;
 	private float deccelerationRate = -15f;
 	private float TURN_RATE = 50f;
+	private float spinDirection = 0f;
+	private float maxSpeedModifierTimer = 0f;
+	private float spinoutTimer = 0f;
+	private float turningDisabledTimer = 0f;
 	private float DRIFTING_TURN_RATE = 75f;
 	private boolean isDrifting = false;
 	private float driftingDirection = 0f;
@@ -151,7 +156,6 @@ public class MyGame extends VariableFrameRateGame {
 		setupHUD();
 		createGroundPlane(sm);
 		createDolphinWithCamera(sm);
-		createBanana(sm);
 
 		setupInputs();
 		createSkyBox(eng, sm);
@@ -225,12 +229,12 @@ public class MyGame extends VariableFrameRateGame {
 			this.getPlayerPosition(),
 			this.getPlayerRotation()
 		);
+		updatePlayerItem();
 		updateGameState();
 		updateItemBoxesRotation();
 		//System.out.println(playerNode.getWorldPosition());
 	}
-	
-	
+
 	public void updateHUD(Engine engine, float elapsTime) {
 		rs = (GL4RenderSystem) engine.getRenderSystem();
 		elapsedMs += elapsTime;
@@ -278,26 +282,41 @@ public class MyGame extends VariableFrameRateGame {
 	}
 
 	protected void updatePlayerPhysics(float elapsedMS) {
+		updateCollisionTimers(elapsedMS);
 		float elapsedSec = elapsedMS / 1000;
-		Vector3 lp = playerNode.getLocalPosition();
+		Vector3 lp = playerNode.getWorldPosition();
 		Vector3 fv = playerAvatar.getWorldForwardAxis();
 		
+		// Handle collision spinning
+		if (isSpinning()) {
+			playerAvatarRotator.setLocalRotation(Matrix3f.createIdentityMatrix());
+			playerAvatarRotator.yaw(Degreef.createFrom(getSpinDirection()));
+		}
+		else {
+			playerAvatarRotator.setLocalRotation(Matrix3f.createIdentityMatrix());
+		}
+		
 		// Handle turning
-		desiredTurnRollingAverage = desiredTurnRollingAverage * 0.9f + getDesiredTurn() * 0.1f;
-		float dTurn = desiredTurnRollingAverage - actualTurn;
-		actualTurn += dTurn / 6;
-		float turnDegrees = actualTurn * elapsedSec * getTurnRate();
-		// Reduce turn rate if car is moving slowly
-		if (Math.abs(vForward) <= 1f) {
-			if (Math.abs(vForward) <= 0.05f) {
-				turnDegrees = 0;
+		if (!getTurningDisabled()) {
+			desiredTurnRollingAverage = desiredTurnRollingAverage * 0.9f + getDesiredTurn() * 0.1f;
+			float dTurn = desiredTurnRollingAverage - actualTurn;
+			actualTurn += dTurn / 6;
+			float turnDegrees = actualTurn * elapsedSec * getTurnRate();
+			// Reduce turn rate if car is moving slowly
+			if (Math.abs(vForward) <= 1f) {
+				if (Math.abs(vForward) <= 0.05f) {
+					turnDegrees = 0;
+				}
+				else {
+					turnDegrees *= ((Math.abs(vForward) * 16 / 19) + 3/19);	
+				}
 			}
-			else {
-				turnDegrees *= ((Math.abs(vForward) * 16 / 19) + 3/19);	
+			if (isOnGround) {
+				playerNode.yaw(Degreef.createFrom(turnDegrees));
 			}
 		}
-		if (isOnGround) {
-			playerNode.yaw(Degreef.createFrom(turnDegrees));
+		else {
+			desiredTurnRollingAverage = 0f;
 		}
 
 		// Handle forward movement
@@ -331,7 +350,7 @@ public class MyGame extends VariableFrameRateGame {
 		float currentHeight = lp.y();
 		float tCAR_LENGTH = vForward > 0 ? 0.5f : -0.5f;
 		playerNode.moveForward(tCAR_LENGTH);
-		Vector3 newLP = playerNode.getLocalPosition();
+		Vector3 newLP = playerNode.getWorldPosition();
 		playerNode.moveBackward(tCAR_LENGTH);
 		float heightDifferential = (getGroundHeight(newLP.x(), newLP.z()) + 0.3f) - currentHeight;
 		float tpitchAngle = (float) Math.toDegrees(Math.atan(heightDifferential / Math.abs(tCAR_LENGTH)));
@@ -345,7 +364,7 @@ public class MyGame extends VariableFrameRateGame {
 		}
 		
 		// Handle new location's height
-		lp = playerNode.getLocalPosition();
+		lp = playerNode.getWorldPosition();
 		float OFFSET = 0.3f;
 		float groundHeight = getGroundHeight(lp.x(), lp.z()) + OFFSET;
 		currentHeight = lp.y();
@@ -403,16 +422,6 @@ public class MyGame extends VariableFrameRateGame {
 			currentRoll = newRoll;
 		}
 	}
-	
-	protected void createBanana(SceneManager sm) throws IOException {
-		Entity bananaE = sm.createEntity("banana", "banana.obj");
-		SceneNode bananaN = sm.getRootSceneNode().createChildSceneNode(bananaE.getName() + "Node");
-		bananaN.attachObject(bananaE);
-		Vector3 lp = bananaN.getLocalPosition();
-		float height = getGroundHeight(lp.x(), lp.z());
-		bananaN.translate(0f, height, 0f);
-		bananaN.scale(0.3f, 0.3f, 0.3f);
-	}
 
 	protected void updateItemBoxesRotation() {
 		SceneManager sm = getEngine().getSceneManager();
@@ -455,10 +464,12 @@ public class MyGame extends VariableFrameRateGame {
 		dolphinE.setPrimitive(Primitive.TRIANGLES);
 		SceneNode dolphinN = sm.getRootSceneNode().createChildSceneNode(dolphinE.getName() + "Node");
 		SceneNode playerAvatarN = dolphinN.createChildSceneNode("playerAvatar");
+		SceneNode playerAvatarRotatorN = playerAvatarN.createChildSceneNode("playerAvatarCollisionRotator");
 		playerNode = dolphinN;
 		playerAvatar = playerAvatarN;
+		playerAvatarRotator = playerAvatarRotatorN;
 		dolphinN.translate(-45.2f, 0, -89.7f);
-		playerAvatarN.attachObject(dolphinE);
+		playerAvatarRotatorN.attachObject(dolphinE);
 		//dolphinN.setPhysicsObject(new PhysicsObject());
 
 		SceneNode dolphinCamera = dolphinN.createChildSceneNode(dolphinN.getName() + "Camera");
@@ -712,7 +723,7 @@ public class MyGame extends VariableFrameRateGame {
 	}
 	
 	public Matrix3 getPlayerRotation() {
-		return playerAvatar.getWorldRotation();
+		return playerAvatarRotator.getWorldRotation();
 	}
 	
 	public void createGhostAvatar(UUID ghostID, Vector3 ghostPosition) {
@@ -808,6 +819,24 @@ public class MyGame extends VariableFrameRateGame {
 		}
 	}
 	
+	
+	private void updatePlayerItem() {
+		if (!hasItem()) {
+			return;
+		}
+		SceneManager sm = getEngine().getSceneManager();
+		SceneNode itemN = sm.getSceneNode(item.getID().toString());
+		itemN.setLocalPosition(playerNode.getWorldPosition());
+		itemN.setLocalRotation(playerAvatar.getWorldRotation());
+		itemN.moveBackward(1.1f);
+		itemN.moveDown(0.3f);
+		clientProtocol.updateItem(
+			item.getID(),
+			itemN.getWorldPosition(),
+			itemN.getWorldRotation()
+		);
+	}
+	
 	public void removeGhostAvatar(UUID ghostID) {
 		try {
 			SceneManager sm = getEngine().getSceneManager();
@@ -825,19 +854,15 @@ public class MyGame extends VariableFrameRateGame {
 	
 	// We just assume client ALWAYS gets this message from the server
 	// If packet is lost, client will never be able to pick up an item again
-	public void setPlayerItem(int itemType) {
-		item = new Item(ItemType.getType(itemType));
-		UUID id = item.getID();
+	public void setPlayerItem(UUID itemID, int itemType) {
 		try {
 			SceneManager sm = getEngine().getSceneManager();
-			Entity itemE = sm.createEntity(id.toString(), "banana.obj");
+			Entity itemE = sm.createEntity(itemID.toString(), "banana.obj");
 			// Player avatar has the rotation information
-			SceneNode itemN = playerAvatar.createChildSceneNode(id.toString());
-			itemN.moveBackward(1.1f);
-			itemN.moveDown(0.3f);
-			itemN.scale(0.3f, 0.3f, 0.3f);
+			SceneNode itemN = sm.getRootSceneNode().createChildSceneNode(itemID.toString());
+			item = new Item(itemID, ItemType.getType(itemType));
+			itemN.scale(0.4f, 0.4f, 0.4f);
 			itemN.attachObject(itemE);
-			// itemN.scale(0.6f, 0.6f, 0.6f);
 		}
 		catch (Exception e) {
 			e.printStackTrace();
@@ -858,6 +883,23 @@ public class MyGame extends VariableFrameRateGame {
 			// Assume server ALWAYS gets this message.
 			// If packet is lost, client will never be able to pick up another item
 			clientProtocol.sendThrowItem();
+			// gameState.getItems().add(item.getID());  Don't need to track this in gamestate?
+		}
+	}
+	
+
+	public void handlePlayerHitItem(UUID itemID) {
+		handleCollision();
+	}
+
+	public void removeItem(UUID itemID) {
+		try {
+			SceneManager sm = getEngine().getSceneManager();
+			sm.destroySceneNode(itemID.toString());
+			// gameState.getItems().remove(itemID); // Don't need to track this in gamestate?
+		}
+		catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 	
@@ -902,7 +944,7 @@ public class MyGame extends VariableFrameRateGame {
 	}
 	
 	protected float getMaxSpeed() {
-		return MAX_BASE_SPEED + getGravityForce();
+		return (MAX_BASE_SPEED + getGravityForce()) * getMaxSpeedModifier();
 	}
 	
 	protected float getMaxReverseSpeed() {
@@ -950,5 +992,68 @@ public class MyGame extends VariableFrameRateGame {
 
 	public void setDrifting(boolean isDrifting) {
 		this.isDrifting = isDrifting;
+	}
+	
+	protected boolean isSpinning() {
+		return spinoutTimer > 0;
+	}
+
+    protected void handleCollision() {
+    	setTurningDisabledTimer(1500f);
+    	setSpinoutTimer(1500f);
+    	setMaxSpeedModifierTimer(1500f);
+    }
+
+    private void setSpinoutTimer(float f) {
+		this.spinoutTimer = f;
+	}
+    
+    private float getSpinDirection() {
+    	return spinDirection;
+    }
+    
+    private void calculateSpinDirection() {
+    	float timer = spinoutTimer;
+    	if (spinoutTimer > 750) {
+    		timer -= 750;
+    	}
+    	setSpinDirection(timer * 360 / 750);
+    }
+    
+    private void setSpinDirection(float direction) {
+    	spinDirection = direction;
+    }
+
+	private boolean getTurningDisabled() {
+    	return turningDisabledTimer > 0f;
+    }
+
+	private void setMaxSpeedModifierTimer(float f) {
+		this.maxSpeedModifierTimer = f;
+	}
+
+	protected float getMaxSpeedModifier() {
+    	if (getMaxSpeedModifierTimer() <= 0f) {
+    		return 1f;
+    	}
+    	return (getMaxSpeedModifierTimer() / 5000) + 0.4f;
+    }
+
+	public float getMaxSpeedModifierTimer() {
+		return maxSpeedModifierTimer;
+	}
+
+	public void updateCollisionTimers(float elapsedMS) {
+		float modifierTimer = Math.max(0, maxSpeedModifierTimer - elapsedMS);
+		setMaxSpeedModifierTimer(modifierTimer);
+		float turningTimer = Math.max(0, turningDisabledTimer - elapsedMS);
+		setTurningDisabledTimer(turningTimer);
+		float spinTimer = Math.max(0, spinoutTimer - elapsedMS);
+		setSpinoutTimer(spinTimer);
+		calculateSpinDirection();
+	}
+
+	private void setTurningDisabledTimer(float turningDisabledTimer) {
+		this.turningDisabledTimer = turningDisabledTimer;
 	}
 }

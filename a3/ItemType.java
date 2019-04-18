@@ -8,13 +8,13 @@ public enum ItemType {
     ;
 	
 	public static int getValue(ItemType type) {
-		return type.ordinal();
+			return type.ordinal();
 	}
 	
 	public static ItemType getType(int type) {
 		return values()[type];
 	}
-    
+
     public static ItemType getRandomItemType() {
         Random random = new Random();
         return values()[random.nextInt(values().length)];

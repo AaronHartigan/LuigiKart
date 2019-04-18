@@ -48,6 +48,10 @@ public class GhostAvatar {
 	public void removeItem() {
 		item = null;
 	}
+
+	public Item getItem() {
+		return item;
+	}
 	
 	public void setItem(Item item) {
 		this.item = item;

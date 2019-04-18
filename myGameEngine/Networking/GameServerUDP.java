@@ -92,6 +92,20 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			GhostAvatar ga = gameState.getGhostAvatars().get(avatarID);
 			ga.removeItem();
 		}
+		else if (messageTokens[0].compareTo("updateItem") == 0) {
+			UUID itemID = UUID.fromString(messageTokens[1]);
+			String[] pos = { messageTokens[2], messageTokens[3], messageTokens[4] };
+			String[] rot = {
+				messageTokens[5], messageTokens[6], messageTokens[7],
+				messageTokens[8], messageTokens[9], messageTokens[10],
+				messageTokens[11], messageTokens[12], messageTokens[13]
+			};
+			gameState.updateItem(
+				itemID,
+				Vector3f.createFrom(pos),
+				Matrix3f.createFrom(rot)
+			);
+		}
 	}
 
 	private void sendTrackMessages(int trackID) {
@@ -162,20 +176,20 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	}
 
 	private void checkCollisions() {
-
 		Iterator<Entry<UUID, GhostAvatar>> avatarIter = gameState.getGhostAvatars().entrySet().iterator();
 		while (avatarIter.hasNext()) {
 			Map.Entry<UUID, GhostAvatar> avatarPair = (Map.Entry<UUID, GhostAvatar>) avatarIter.next();
 			GhostAvatar avatar = avatarPair.getValue();
+			Vector3 gaPos = avatar.getPos();
 			Iterator<Entry<UUID, ItemBox>> itemBoxIter = gameState.getItemBoxes().entrySet().iterator();
+			// Check collisions with item boxes
 			while (itemBoxIter.hasNext()) {
-				Map.Entry<UUID, ItemBox> itemPair = (Map.Entry<UUID, ItemBox>) itemBoxIter.next();
-				ItemBox itemBox = itemPair.getValue();
+				Map.Entry<UUID, ItemBox> itemBoxPair = (Map.Entry<UUID, ItemBox>) itemBoxIter.next();
+				ItemBox itemBox = itemBoxPair.getValue();
 				if (itemBox.getIsActive() == 0 || itemBox.isGrowing() == 1) {
 					continue;
 				}
 				Vector3 ibPos = itemBox.getPos();
-				Vector3 gaPos = avatar.getPos();
 				
 				double dist = calcDistance(
 					ibPos.x(), ibPos.z(),
@@ -192,6 +206,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	        		try {
 	        			String message = new String(
 	        				"gotItem," +
+	        				newItem.getID() + "," + 
     						ItemType.getValue(newItem.getType())
 	        			);
 	        			sendPacket(message, avatar.getId());
@@ -199,6 +214,37 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	        		catch (IOException e) {
 	        			e.printStackTrace();
 	        		}
+	        		gameState.getItems().put(newItem.getID(), newItem);
+				}
+			}
+			
+			Iterator<Entry<UUID, Item>> itemsIter = gameState.getItems().entrySet().iterator();
+			while (itemsIter.hasNext()) {
+				Map.Entry<UUID, Item> itemPair = (Map.Entry<UUID, Item>) itemsIter.next();
+				Item item = itemPair.getValue();
+				if (avatar.hasItem() && avatar.getItem().getID().equals(item.getID())) {
+					continue;
+				}
+				
+				Vector3 iPos = item.getPos();
+				
+				double dist = calcDistance(
+					iPos.x(), iPos.z(),
+					gaPos.x(), gaPos.z()
+				);
+				// System.out.println(dist);
+				// If a player has hit an item
+				if (dist < 1f) {
+	        		try {
+	        			String message = new String(
+	        				"hitItem," + avatar.getId() + "," + item.getID()
+	        			);
+	        			sendPacketToAll(message);
+	        		}
+	        		catch (IOException e) {
+	        			e.printStackTrace();
+	        		}
+	        		itemsIter.remove();
 				}
 			}
 		}
