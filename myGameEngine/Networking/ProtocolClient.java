@@ -72,7 +72,8 @@ public class ProtocolClient extends GameConnectionClient {
 			    floats[i] = Float.parseFloat(messageTokens[i + 5]);
 			}
 			Matrix3 ghostRotation = Matrix3f.createFrom(floats);
-			game.updateGhostAvatar(ghostID, ghostPosition, ghostRotation);
+			float vForward = Float.parseFloat(messageTokens[14]);
+			game.updateGhostAvatar(ghostID, ghostPosition, ghostRotation, vForward);
 		}
 		else if(messageTokens[0].compareTo("uIB") == 0) {
 			// Update ItemBox
@@ -100,10 +101,15 @@ public class ProtocolClient extends GameConnectionClient {
 		else if(messageTokens[0].compareTo("hitItem") == 0) { 
 			UUID playerID = UUID.fromString(messageTokens[1]);
 			UUID itemID = UUID.fromString(messageTokens[2]);
+			Vector3 force = Vector3f.createFrom(
+				messageTokens[3],
+				messageTokens[4],
+				messageTokens[5]
+			);
 			if (playerID.equals(id)) {
 				game.handlePlayerHitItem(itemID);
 			}
-			game.removeItem(itemID);
+			game.removeItem(itemID, force);
 		}
 		else if(messageTokens[0].compareTo("itemUpdate") == 0) { 
 			UUID itemID = UUID.fromString(messageTokens[1]);
@@ -151,11 +157,12 @@ public class ProtocolClient extends GameConnectionClient {
 		}
 	}
 
-	public void updatePlayerInformation(Vector3 pos, Matrix3 rot) {
+	public void updatePlayerInformation(Vector3 pos, Matrix3 rot, float vForward) {
 		try {
 			String message = new String("update," + id.toString());
 			message += "," + pos.x()+"," + pos.y() + "," + pos.z();
 			message += "," + rot.serialize();
+			message += "," + vForward;
 			sendPacket(message);
 		}
 		catch (IOException e) {

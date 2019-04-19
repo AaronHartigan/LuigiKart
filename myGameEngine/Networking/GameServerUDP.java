@@ -67,10 +67,12 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 				messageTokens[8], messageTokens[9], messageTokens[10],
 				messageTokens[11], messageTokens[12], messageTokens[13]
 			};
+			float vForward = Float.parseFloat(messageTokens[14]);
 			gameState.updateGhostAvatar(
 				clientID,
 				Vector3f.createFrom(pos),
-				Matrix3f.createFrom(rot)
+				Matrix3f.createFrom(rot),
+				vForward
 			);
 		}
 		else if (messageTokens[0].compareTo("bye") == 0) {
@@ -135,6 +137,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
         			String message = new String("update," + id.toString() + ",");
         			message += ga.getPos().serialize();
         			message += "," + ga.getRot().serialize();
+        			message += "," + ga.getVelocityForward();
         			forwardPacketToAll(message, id);
         		}
         		catch (IOException e) {
@@ -252,9 +255,16 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 				// If a player has hit an item
 				if (dist < 1f) {
 					removeItemFromAvatar(item.getID());
+					Vector3 forwardVector = avatar.getRot().column(2);
+					float velocityForward = avatar.getVelocityForward();
 	        		try {
 	        			String message = new String(
-	        				"hitItem," + avatar.getId() + "," + item.getID()
+	        				"hitItem" +
+		        			"," + avatar.getId() +
+		        			"," + item.getID() +
+		        			"," + forwardVector.x() * velocityForward +
+		        			"," + forwardVector.y() * velocityForward + 
+		        			"," + forwardVector.z() * velocityForward
 	        			);
 	        			sendPacketToAll(message);
 	        		}

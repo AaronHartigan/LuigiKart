@@ -2,6 +2,7 @@ package a3;
 
 import myGameEngine.*;
 import myGameEngine.Networking.ProtocolClient;
+import myGameEngine.controllers.BananaDeathAnimationController;
 import myGameEngine.controllers.NodeOrbitController;
 import myGameEngine.myRage.HUDString;
 import net.java.games.input.Controller;
@@ -156,6 +157,7 @@ public class MyGame extends VariableFrameRateGame {
 		setupHUD();
 		createGroundPlane(sm);
 		createDolphinWithCamera(sm);
+		initMeshes();
 
 		setupInputs();
 		createSkyBox(eng, sm);
@@ -165,6 +167,18 @@ public class MyGame extends VariableFrameRateGame {
 		selectTrack(1);
 	}
 
+	private void initMeshes() throws IOException {
+		createBanana();
+	}
+	
+	private void createBanana() throws IOException {
+		Entity bananaE = getEngine().getSceneManager().createEntity("banana", "banana.obj");
+		SceneNode bananaN = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(bananaE.getName() + "Node");
+		bananaN.attachObject(bananaE);
+		bananaN.scale(0.01f, 0.01f, 0.01f);
+		bananaN.translate(-1000000f, 0f, 0f);
+	}
+	
 	private void setupNetworking() {
 		try {
 			clientProtocol = new ProtocolClient(
@@ -227,7 +241,8 @@ public class MyGame extends VariableFrameRateGame {
 		}
 		clientProtocol.updatePlayerInformation(
 			this.getPlayerPosition(),
-			this.getPlayerRotation()
+			this.getPlayerRotation(),
+			vForward
 		);
 		updatePlayerItem();
 		updateGameStateDisplay();
@@ -740,7 +755,7 @@ public class MyGame extends VariableFrameRateGame {
 		}
 	}
 	
-	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation) {
+	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward) {
 		try {
 			SceneManager sm = getEngine().getSceneManager();
 			if (!sm.hasSceneNode(ghostID.toString())) {
@@ -748,7 +763,7 @@ public class MyGame extends VariableFrameRateGame {
 				createGhostAvatar(ghostID, ghostPosition);
 				return;
 			}
-			gameState.updateGhostAvatar(ghostID, ghostPosition, ghostRotation);
+			gameState.updateGhostAvatar(ghostID, ghostPosition, ghostRotation, vForward);
 		}
 		catch (RuntimeException e) {
 			e.printStackTrace();
@@ -905,13 +920,22 @@ public class MyGame extends VariableFrameRateGame {
 		handleCollision();
 	}
 
-	public void removeItem(UUID itemID) {
+	public void removeItem(UUID itemID, Vector3 force) {
 		if (hasItem() && itemID.equals(item.getID())) {
 			item = null;
 		}
 		try {
 			SceneManager sm = getEngine().getSceneManager();
-			sm.destroySceneNode(itemID.toString());
+			SceneNode item = sm.getSceneNode(itemID.toString());
+			if (gameState.getItems().get(itemID).getType().equals(ItemType.BANANA)) {
+				BananaDeathAnimationController bdaC = new BananaDeathAnimationController(
+					this,
+					item,
+					force
+				);
+				bdaC.addNode(item);
+				sm.addController(bdaC);
+			}
 			gameState.getItems().remove(itemID);
 		}
 		catch (Exception e) {

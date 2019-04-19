@@ -10,6 +10,7 @@ import ray.rml.Vector3f;
 public class GhostAvatar {
 	private UUID id;
 	private Item item = null;
+	private float velocityForward = 0f;
 	private Vector3 pos = Vector3f.createFrom(0f, 0f, 0f);
 	private Matrix3 rot = Matrix3f.createIdentityMatrix();
 
@@ -55,5 +56,13 @@ public class GhostAvatar {
 	
 	public void setItem(Item item) {
 		this.item = item;
+	}
+
+	public float getVelocityForward() {
+		return velocityForward;
+	}
+
+	public void setVelocityForward(float velocityForward) {
+		this.velocityForward = velocityForward;
 	}
 }

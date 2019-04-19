@@ -177,6 +177,7 @@ public interface Node extends Nameable {
          */
         boolean isEnabled();
 
+		boolean isShouldDelete();
     }
 
     /**

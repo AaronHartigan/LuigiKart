@@ -56,9 +56,10 @@ public class GameState {
 		ghostAvatars.put(ghostID, new GhostAvatar(ghostID));
 	}
 	
-	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation) {
+	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward) {
 		ghostAvatars.get(ghostID).setPos(ghostPosition);
 		ghostAvatars.get(ghostID).setRot(ghostRotation);
+		ghostAvatars.get(ghostID).setVelocityForward(vForward);
 	}
 	
 	public void removeGhostAvatar(UUID ghostID) {
