@@ -594,4 +594,6 @@ public interface Tessellation extends SceneObject {
      * @return quality total
      */
 	int getQualityTotal();
+
+	boolean getIsSpeedBoost(float x, float z);
 }

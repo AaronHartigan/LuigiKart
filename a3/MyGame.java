@@ -77,12 +77,15 @@ public class MyGame extends VariableFrameRateGame {
 	private boolean isAccelerating = false;
 	private boolean isDeccelerating = false;
 	private boolean isBraking = false;
+	private boolean isOnSpeedBoost = false;
 	private float accelerationRate = 20f;
 	private float deccelerationRate = -15f;
 	private float TURN_RATE = 50f;
 	private float spinDirection = 0f;
-	private float maxSpeedModifierTimer = 0f;
 	private float spinoutTimer = 0f;
+	private float SPINOUT_DURATION = 1500f;
+	private float speedBoostTimer = 0f;
+	private float SPEED_BOOST_DURATION = 1000f;
 	private float turningDisabledTimer = 0f;
 	private float DRIFTING_TURN_RATE = 75f;
 	private boolean isDrifting = false;
@@ -296,11 +299,20 @@ public class MyGame extends VariableFrameRateGame {
 		return plane.getWorldHeight(x, z);
 	}
 
+	protected boolean getIsSpeedBoost(float x, float z) {
+		Tessellation plane = getEngine().getSceneManager().getTessellation("plane");
+		return plane.getIsSpeedBoost(x, z);
+	}
+
+	
 	protected void updatePlayerPhysics(float elapsedMS) {
-		updateCollisionTimers(elapsedMS);
+		updateTimers(elapsedMS);
 		float elapsedSec = elapsedMS / 1000;
 		Vector3 lp = playerNode.getWorldPosition();
 		Vector3 fv = playerAvatar.getWorldForwardAxis();
+		
+		// Handle speed boost
+		setOnSpeedBoost(getIsSpeedBoost(lp.x(), lp.z()));
 		
 		// Handle collision spinning
 		if (isSpinning()) {
@@ -335,7 +347,10 @@ public class MyGame extends VariableFrameRateGame {
 		}
 
 		// Handle forward movement
-		if (isOnGround) {
+		if (speedBoostTimer > 0f) {
+			vForward = getMaxSpeed();
+		}
+		else if (isOnGround) {
 			// adjust forward velocity
 			if (isAccelerating()) {
 				vForward += accelerationRate * elapsedSec;
@@ -367,7 +382,7 @@ public class MyGame extends VariableFrameRateGame {
 		playerNode.moveForward(tCAR_LENGTH);
 		Vector3 newLP = playerNode.getWorldPosition();
 		playerNode.moveBackward(tCAR_LENGTH);
-		float heightDifferential = (getGroundHeight(newLP.x(), newLP.z()) + 0.3f) - currentHeight;
+		float heightDifferential = (getGroundHeight(newLP.x(), newLP.z())) - currentHeight;
 		float tpitchAngle = (float) Math.toDegrees(Math.atan(heightDifferential / Math.abs(tCAR_LENGTH)));
 		if (tpitchAngle > 45f) {
 			// Calculate angle and set new angle and velocity
@@ -380,8 +395,7 @@ public class MyGame extends VariableFrameRateGame {
 		
 		// Handle new location's height
 		lp = playerNode.getWorldPosition();
-		float OFFSET = 0.3f;
-		float groundHeight = getGroundHeight(lp.x(), lp.z()) + OFFSET;
+		float groundHeight = getGroundHeight(lp.x(), lp.z());
 		currentHeight = lp.y();
 		// If avatar was already on the ground, and the ground is near, "snap" the avatar to the ground
 		if (isOnGround && (currentHeight - groundHeight) < 0.2f) {
@@ -391,15 +405,15 @@ public class MyGame extends VariableFrameRateGame {
 		if (currentHeight > groundHeight) {
 			isOnGround = false;
 			vUp += gravity * elapsedSec;
-			currentHeight += vUp * elapsedSec;
+			currentHeight += ((gravity * elapsedSec * elapsedSec / 2) + vUp * elapsedSec);
 		}
 		// Must check if gravity has put us below ground (or going uphill)
 		if (currentHeight < groundHeight) {
 			// if we were falling with enough speed, bounce
-			if (!isOnGround && Math.abs(vUp) > 5f) {
-				vUp = Math.abs(vUp) / 10;
+			if (!isOnGround && vUp < -3f) {
+				vUp = Math.abs(vUp) / 8;
 			}
-			// If we are too slow, just be on the ground
+			// If not enough downward velocity, just be on the ground
 			else {
 				vUp = 0;
 				isOnGround = true;
@@ -413,26 +427,45 @@ public class MyGame extends VariableFrameRateGame {
 			Vector3 heading;
 			float heightChange;
 			playerAvatar.setLocalRotation(Matrix3f.createIdentityMatrix());
-			
 			// Calculate pitch
 			float CAR_LENGTH = 0.5f;
 			playerNode.moveForward(CAR_LENGTH);
 			heading = playerNode.getLocalPosition();
 			playerNode.moveBackward(CAR_LENGTH);
-			heightChange = (getGroundHeight(heading.x(), heading.z()) + OFFSET) - currentHeight;
-			float pitchAngle = (float) Math.toDegrees(Math.atan(heightChange / CAR_LENGTH));
-			float newPitch = (pitchAngle - currentPitch) * elapsedSec * 3 + currentPitch;
-			playerAvatar.pitch(Degreef.createFrom(-newPitch));
-			currentPitch = newPitch;
+			heightChange = (getGroundHeight(heading.x(), heading.z())) - currentHeight;
+			if (heightChange < -1f) {
+				// if falling, don't correct pitch much
+				float pitchAngle = (float) Math.toDegrees(Math.atan(heightChange / CAR_LENGTH));
+				float newPitch = (pitchAngle - currentPitch) * elapsedSec / 3 + currentPitch;
+				playerAvatar.pitch(Degreef.createFrom(-newPitch));
+				currentPitch = newPitch;
+			}
+			else {
+				float pitchAngle = (float) Math.toDegrees(Math.atan(heightChange / CAR_LENGTH));
+				float newPitch = (pitchAngle - currentPitch) * elapsedSec * 3 + currentPitch;
+				playerAvatar.pitch(Degreef.createFrom(-newPitch));
+				currentPitch = newPitch;
+			}
 			
 			// Calculate roll
 			float CAR_WIDTH = 0.25f;
 			playerNode.moveRight(CAR_WIDTH);
 			heading = playerNode.getLocalPosition();
 			playerNode.moveLeft(CAR_WIDTH);
-			heightChange = (getGroundHeight(heading.x(), heading.z()) + OFFSET) - currentHeight;
+			heightChange = (getGroundHeight(heading.x(), heading.z())) - currentHeight;
 			float rollAngle = (float) Math.toDegrees(Math.atan(heightChange / CAR_WIDTH));
 			float newRoll = (rollAngle - currentRoll) * elapsedSec * 5 + currentRoll;
+			playerAvatar.roll(Degreef.createFrom(newRoll));
+			currentRoll = newRoll;
+		}
+		// If in air, straighten car out
+		else {
+			playerAvatar.setLocalRotation(Matrix3f.createIdentityMatrix());
+			float newPitch = -currentPitch * elapsedSec + currentPitch;
+			playerAvatar.pitch(Degreef.createFrom(-newPitch));
+			currentPitch = newPitch;
+			
+			float newRoll = -currentRoll * elapsedSec + currentRoll;
 			playerAvatar.roll(Degreef.createFrom(newRoll));
 			currentRoll = newRoll;
 		}
@@ -485,6 +518,7 @@ public class MyGame extends VariableFrameRateGame {
 		playerAvatarRotator = playerAvatarRotatorN;
 		dolphinN.translate(-45.2f, 0, -89.7f);
 		playerAvatarRotatorN.attachObject(dolphinE);
+		playerAvatarRotatorN.translate(0f, 0.3f, 0f);
 		//dolphinN.setPhysicsObject(new PhysicsObject());
 
 		SceneNode dolphinCamera = dolphinN.createChildSceneNode(dolphinN.getName() + "Camera");
@@ -1039,9 +1073,8 @@ public class MyGame extends VariableFrameRateGame {
 	}
 
     protected void handleCollision() {
-    	setTurningDisabledTimer(1500f);
-    	setSpinoutTimer(1500f);
-    	setMaxSpeedModifierTimer(1500f);
+    	setTurningDisabledTimer(SPINOUT_DURATION);
+    	setSpinoutTimer(SPINOUT_DURATION);
     }
 
     private void setSpinoutTimer(float f) {
@@ -1068,29 +1101,25 @@ public class MyGame extends VariableFrameRateGame {
     	return turningDisabledTimer > 0f;
     }
 
-	private void setMaxSpeedModifierTimer(float f) {
-		this.maxSpeedModifierTimer = f;
-	}
-
 	protected float getMaxSpeedModifier() {
-    	if (getMaxSpeedModifierTimer() <= 0f) {
+    	if (spinoutTimer <= 0f) {
+    		if (speedBoostTimer > 0f) {
+    			return 1.2f;
+    		}
     		return 1f;
     	}
-    	return (getMaxSpeedModifierTimer() / 5000) + 0.4f;
+    	return ((spinoutTimer / SPINOUT_DURATION) * 0.3f ) + 0.4f;
     }
 
-	public float getMaxSpeedModifierTimer() {
-		return maxSpeedModifierTimer;
+	public void updateTimers(float elapsedMS) {
+		setTurningDisabledTimer(Math.max(0, turningDisabledTimer - elapsedMS));
+		setSpinoutTimer(Math.max(0, spinoutTimer - elapsedMS));
+		setSpeedBoostTimer(Math.max(0, speedBoostTimer - elapsedMS));
+		calculateSpinDirection();
 	}
 
-	public void updateCollisionTimers(float elapsedMS) {
-		float modifierTimer = Math.max(0, maxSpeedModifierTimer - elapsedMS);
-		setMaxSpeedModifierTimer(modifierTimer);
-		float turningTimer = Math.max(0, turningDisabledTimer - elapsedMS);
-		setTurningDisabledTimer(turningTimer);
-		float spinTimer = Math.max(0, spinoutTimer - elapsedMS);
-		setSpinoutTimer(spinTimer);
-		calculateSpinDirection();
+	private void setSpeedBoostTimer(float time) {
+		this.speedBoostTimer = time;
 	}
 
 	private void setTurningDisabledTimer(float turningDisabledTimer) {
@@ -1110,5 +1139,16 @@ public class MyGame extends VariableFrameRateGame {
 		catch (RuntimeException e) {
 			e.printStackTrace();
 		}
+	}
+
+	public boolean isOnSpeedBoost() {
+		return isOnSpeedBoost;
+	}
+
+	public void setOnSpeedBoost(boolean isOnSpeedBoost) {
+		if (isOnSpeedBoost) {
+			speedBoostTimer = SPEED_BOOST_DURATION;
+		}
+		this.isOnSpeedBoost = isOnSpeedBoost;
 	}
 }
