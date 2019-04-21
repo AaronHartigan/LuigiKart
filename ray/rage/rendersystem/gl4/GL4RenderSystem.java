@@ -559,7 +559,7 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
 	                        + GpuShaderProgram.class.getSimpleName() + " set");
 	                continue;
 	            }
-	            if (program.getType() == Type.SKYBOX) {
+	            if (program.getType() == Type.SKYBOX || program.getType() == Type.GUI) {
 	            	continue;
 	            }
 	            if (!(program.getType() == Type.TESSELLATION)) {
@@ -728,6 +728,50 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
 	            ctx.notifyDispose();
 	        	gl.glEnable(GL4.GL_CULL_FACE);
 	        }
+
+	        // Render Transparent Renderables
+	        gl.glEnable(GL4.GL_BLEND);
+	        for (Renderable r : renderQueue) {
+	            GpuShaderProgram program = r.getGpuShaderProgram();
+	            if (program == null) {
+	                logger.severe(Renderable.class.getSimpleName() + " skipped. No "
+	                        + GpuShaderProgram.class.getSimpleName() + " set");
+	                continue;
+	            }
+	            if (!(program.getType() == Type.TRANSPARENT)) {
+	            	continue;
+	            }
+	            setRenderStates(r);
+	            final GpuShaderProgram.Context ctx = program.createContext();
+	            ctx.setRenderable(r);
+	            ctx.setViewMatrix(viewMatrix);
+	            if (perspective) {
+		            ctx.setProjectionMatrix(projMatrix);
+	            }
+	            else {
+		            ctx.setProjectionMatrix(orthoProjection);
+	            }
+	            if (r.getCanReceiveShadows()) {
+	            	ctx.setCanReceiveShadows(true);
+	            }
+	            else {
+	            	ctx.setCanReceiveShadows(false);
+	            }
+	            ctx.setLightsList(lightsList);
+	            ctx.setAmbientLight(ambientLight);
+	            ctx.setLightSpaceMatrix(lightSpaceMatrix);
+	
+	            program.bind();
+	            program.fetch(ctx);
+		        gl.glActiveTexture(GL4.GL_TEXTURE5);
+		        gl.glBindTexture(GL4.GL_TEXTURE_2D, depthMap[0]);
+	            drawRenderable(gl, r);
+	            program.unbind();
+	
+	            ctx.notifyDispose();
+	        	gl.glEnable(GL4.GL_CULL_FACE);
+	        }
+	        gl.glDisable(GL4.GL_BLEND);
 	        
 	        // Render ITEM_BOX back face
 	        gl.glCullFace(GL4.GL_FRONT);
@@ -801,6 +845,60 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
 	
 	            ctx.notifyDispose();
 	        }
+	        gl.glDisable(GL4.GL_BLEND);
+	        
+	        // Render GUI Background
+	        gl.glEnable(GL4.GL_BLEND);
+	        gl.glDisable(GL4.GL_DEPTH_TEST);
+	        for (Renderable r : renderQueue) {
+	            GpuShaderProgram program = r.getGpuShaderProgram();
+	            if (program == null) {
+	                logger.severe(Renderable.class.getSimpleName() + " skipped. No "
+	                        + GpuShaderProgram.class.getSimpleName() + " set");
+	                continue;
+	            }
+	            if (!(program.getType() == Type.GUI_BACKGROUND)) {
+	            	continue;
+	            }
+	            setRenderStates(r);
+	            final GpuShaderProgram.Context ctx = program.createContext();
+	            ctx.setRenderable(r);
+
+	            program.bind();
+	            program.fetch(ctx);
+	            drawRenderable(gl, r);
+	            program.unbind();
+	
+	            ctx.notifyDispose();
+	        }
+	        gl.glEnable(GL4.GL_DEPTH_TEST);
+	        gl.glDisable(GL4.GL_BLEND);
+	        
+	        // Render GUI
+	        gl.glEnable(GL4.GL_BLEND);
+	        gl.glDisable(GL4.GL_DEPTH_TEST);
+	        for (Renderable r : renderQueue) {
+	            GpuShaderProgram program = r.getGpuShaderProgram();
+	            if (program == null) {
+	                logger.severe(Renderable.class.getSimpleName() + " skipped. No "
+	                        + GpuShaderProgram.class.getSimpleName() + " set");
+	                continue;
+	            }
+	            if (!(program.getType() == Type.GUI)) {
+	            	continue;
+	            }
+	            setRenderStates(r);
+	            final GpuShaderProgram.Context ctx = program.createContext();
+	            ctx.setRenderable(r);
+
+	            program.bind();
+	            program.fetch(ctx);
+	            drawRenderable(gl, r);
+	            program.unbind();
+	
+	            ctx.notifyDispose();
+	        }
+	        gl.glEnable(GL4.GL_DEPTH_TEST);
 	        gl.glDisable(GL4.GL_BLEND);
         }
 

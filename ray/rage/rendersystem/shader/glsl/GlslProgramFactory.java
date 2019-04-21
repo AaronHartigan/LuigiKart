@@ -52,6 +52,12 @@ public final class GlslProgramFactory implements GpuShaderProgramFactory {
                 return new GlslTessProgram((GLCanvas) rs.getCanvas());
             case FRAMEBUFFER:
             	return new GlslFramebufferProgram((GLCanvas) rs.getCanvas());
+            case TRANSPARENT:
+            	return new GlslTransparentProgram((GLCanvas) rs.getCanvas());
+            case GUI:
+            	return new GlslGUIProgram((GLCanvas) rs.getCanvas());
+            case GUI_BACKGROUND:
+            	return new GlslGUIBackgroundProgram((GLCanvas) rs.getCanvas());
             default:
                 throw new UnsupportedOperationException(type + " not implemented");
         }

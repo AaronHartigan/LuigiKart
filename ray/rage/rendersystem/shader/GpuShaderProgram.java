@@ -73,6 +73,12 @@ public interface GpuShaderProgram extends Disposable {
         ITEM_BOX,
         
         FRAMEBUFFER,
+        
+        TRANSPARENT,
+        
+        GUI,
+        
+        GUI_BACKGROUND,
     }
 
     /**

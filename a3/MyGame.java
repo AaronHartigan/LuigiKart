@@ -24,7 +24,6 @@ import ray.rage.rendersystem.gl4.GL4RenderSystem;
 import ray.rage.rendersystem.states.RenderState;
 import ray.rage.rendersystem.states.TextureState;
 import ray.rage.rendersystem.states.CullingState;
-import ray.rage.rendersystem.states.FrontFaceState;
 import ray.rage.rendersystem.states.TextureState.WrapMode;
 import ray.rage.rendersystem.shader.GpuShaderProgram;
 import ray.rage.scene.Camera;
@@ -108,6 +107,7 @@ public class MyGame extends VariableFrameRateGame {
 	private GameState gameState = new GameState();
 	private static long particleID = 0;
 	private PreloadTextures textures = null;
+	private TimerGui timerGui = null;
 
 	public static synchronized String createID() {
 	    return String.valueOf(particleID++);
@@ -180,7 +180,8 @@ public class MyGame extends VariableFrameRateGame {
 		setupAmbientLight(sm);
 		setupPointLight(sm);
 		selectTrack(1);
-		textures = new PreloadTextures(this);
+		setTextures(new PreloadTextures(this));
+		timerGui = new TimerGui(this);
 	}
 
 	private void initMeshes() throws IOException {
@@ -263,6 +264,7 @@ public class MyGame extends VariableFrameRateGame {
 		updatePlayerItem();
 		updateGameStateDisplay();
 		updateItemBoxesRotation();
+		timerGui.update(elapsedMs);
 		//System.out.println(playerNode.getWorldPosition());
 	}
 
@@ -286,19 +288,6 @@ public class MyGame extends VariableFrameRateGame {
 		
 		int topRightX = rs.getCanvas().getWidth() - 175;
 		int topRightY = rs.getCanvas().getHeight() - 30;
-		int ms = elapsedMs % 1000;
-		int sec = ((elapsedMs - ms) / 1000) % 60;
-		int min = (((elapsedMs - ms) / 1000) - sec) / 60;
-		stringList.get(3).setAll(
-			"time " +
-			String.format("%02d", min) +
-			":" +
-			String.format("%02d", sec) +
-			":" +
-			String.format("%03d", ms),
-			topRightX,
-			topRightY
-		);
 	}
 
 	private void processNetworking(float elapsTime) {
@@ -1203,8 +1192,17 @@ public class MyGame extends VariableFrameRateGame {
 			cullingState.setCulling(CullingState.Culling.DISABLED);
 			particleE.setRenderState(cullingState);
 			TextureState tstate = (TextureState) getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-			tstate.setTexture(textures.getRandomTexture());
+			tstate.setTexture(getTextures().getRandomTexture());
 			particleE.setRenderState(tstate);
+			particleE.setGpuShaderProgram(getEngine().getSceneManager().getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.TRANSPARENT));
 		}
+	}
+
+	public PreloadTextures getTextures() {
+		return textures;
+	}
+
+	public void setTextures(PreloadTextures textures) {
+		this.textures = textures;
 	}
 }
