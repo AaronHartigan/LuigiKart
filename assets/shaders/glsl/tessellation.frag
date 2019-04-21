@@ -212,9 +212,24 @@ void main() {
     for (int i = 0; i < ssbo.lights.length(); ++i)
         special += get_light_effect(ssbo.lights[i], material);
 	effect += ((1f - shadow) * special);
+	
+	// If the height map has a blue pixel, render as a speed boost
+	if (hasHeightM > 0) {
+		color = texture2D(tex_height, tes_out) * effect;
+		if (color.b > 0.9) {
+			color = vec4(0, 0, 1, 1) * effect;
+			return;
+		}
+		
+	}
+	// If the user has not binded a texture yet (or disabled it), simply output a plain white.
+	if (hasTexture > 0) {
+		color = texture2D(tex_color, tes_out) * effect;
+	}
+	else {
+		color = vec4(1, 1, 1, 1) * effect;
+	}
 
-    // If the user has not binded a texture yet (or disabled it), simply output a plain white.
-    if (hasTexture > 0) color = texture2D(tex_color, tes_out) * effect;
-    else                color = vec4(1, 1, 1, 1) * effect;
+
 	//color = vec4(vec3(gl_FragCoord.z), 1.0);
 }

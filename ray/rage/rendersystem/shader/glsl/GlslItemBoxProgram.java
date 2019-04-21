@@ -84,6 +84,7 @@ class GlslItemBoxProgram extends AbstractGlslProgram {
     private long dTime = 0;
     private float MOVE_SPEED_MODIFIER = 0.0001f;
     private float moveFactor = 0;
+    private boolean growing = true;
 
     public GlslItemBoxProgram(GLCanvas canvas) {
         super(canvas);
@@ -107,8 +108,30 @@ class GlslItemBoxProgram extends AbstractGlslProgram {
 
         long currentTimeMS = System.currentTimeMillis();
         dTime = currentTimeMS - timeMS;
-        moveFactor += dTime * MOVE_SPEED_MODIFIER;
-        moveFactor %= 1;
+        if (growing) {
+            moveFactor += dTime * MOVE_SPEED_MODIFIER;
+        }
+        else {
+            moveFactor -= dTime * MOVE_SPEED_MODIFIER;
+        }
+        if (moveFactor > 1) {
+	        while (moveFactor > 1) {
+	        	moveFactor -= 1;
+	        	growing = !growing;
+	        }
+	        if (!growing) {
+	        	moveFactor = 1f - moveFactor;
+	        }
+        }
+        else if (moveFactor < 0) {
+        	while (moveFactor < 0) {
+        		moveFactor += 1;
+            	growing = !growing;
+        	}
+        	if (growing) {
+        		moveFactor = 1f - moveFactor;
+        	}
+        }
         timeMS = currentTimeMS;
         textureMoveFactor.set(moveFactor);
 

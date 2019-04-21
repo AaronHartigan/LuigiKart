@@ -217,13 +217,27 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 				// If a player has hit an item box
 				if (dist < 1f) {
 					itemBox.setIsActive(0);
+					Vector3 forwardVector = avatar.getRot().column(2);
+					float velocityForward = avatar.getVelocityForward();
+        			String message = new String(
+        				"itemBoxExplosion," +
+						ibPos.serialize() +
+	        			"," + forwardVector.x() * velocityForward +
+	        			"," + forwardVector.y() * velocityForward + 
+	        			"," + forwardVector.z() * velocityForward
+        			);
+        			try {
+						sendPacketToAll(message);
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
 					if (avatar.hasItem()) {
 						continue;
 					}
 					Item newItem = new Item(ItemType.getRandomItemType());
 					avatar.setItem(newItem);
 	        		try {
-	        			String message = new String(
+	        			message = new String(
 	        				"gotItem," +
 	        				newItem.getID() + "," + 
     						ItemType.getValue(newItem.getType())

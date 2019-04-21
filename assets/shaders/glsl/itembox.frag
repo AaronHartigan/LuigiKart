@@ -217,13 +217,13 @@ void main()
         special += get_light_effect(ssbo.lights[i], material);
 	effect += ((1 - shadow) * special);
 	float tx = (fs_in.vertex_texcoord.x + textureMoveFactor);
-	while (tx > 1) {
-		tx -= 1;
+	if (tx > 1) {
+		tx = 2 - tx;
 	}
-	tx = clamp(tx, 0.01f, 0.99f);
 	float ty = fs_in.vertex_texcoord.y;
     fragment = texture2D(texture_sampler, vec2(tx, ty)) * effect;
 	if (gl_FrontFacing) {
+		// if front-facing bevel, brighten
 		if (ty < 0.3) {
 			fragment = fragment * 1.1;
 			fragment.w = 0.7;
@@ -236,4 +236,6 @@ void main()
 		fragment = fragment * 0.8;
 		fragment.w = 1.0;
 	}
+	fragment.b += 0.4;
+	fragment.g -= 0.05;
 }

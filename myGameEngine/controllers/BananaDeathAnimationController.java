@@ -31,7 +31,9 @@ public class BananaDeathAnimationController extends AbstractController {
 		if (totalTime > animationTime) {
 			this.removeAllNodes();
 			this.setShouldDelete(true);
+			g.getEngine().getSceneManager().destroyEntity(banana.getName());
 			g.getEngine().getSceneManager().destroySceneNode(banana);
+			return;
 		}
 		
 		float extraHeight = (float) Math.sin((totalTime / animationTime) * Math.PI) * 2f;

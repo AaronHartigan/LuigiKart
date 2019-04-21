@@ -3,7 +3,9 @@ package a3;
 import myGameEngine.*;
 import myGameEngine.Networking.ProtocolClient;
 import myGameEngine.controllers.BananaDeathAnimationController;
+import myGameEngine.controllers.ItemGrowthController;
 import myGameEngine.controllers.NodeOrbitController;
+import myGameEngine.controllers.ParticleController;
 import myGameEngine.myRage.HUDString;
 import net.java.games.input.Controller;
 import ray.input.GenericInputManager;
@@ -17,8 +19,12 @@ import ray.rage.game.Game;
 import ray.rage.game.VariableFrameRateGame;
 import ray.rage.rendersystem.RenderSystem;
 import ray.rage.rendersystem.RenderWindow;
-import ray.rage.rendersystem.Renderable.*;
+import ray.rage.rendersystem.Renderable.Primitive;
 import ray.rage.rendersystem.gl4.GL4RenderSystem;
+import ray.rage.rendersystem.states.RenderState;
+import ray.rage.rendersystem.states.TextureState;
+import ray.rage.rendersystem.states.CullingState;
+import ray.rage.rendersystem.states.FrontFaceState;
 import ray.rage.rendersystem.states.TextureState.WrapMode;
 import ray.rage.rendersystem.shader.GpuShaderProgram;
 import ray.rage.scene.Camera;
@@ -100,6 +106,12 @@ public class MyGame extends VariableFrameRateGame {
 	private float currentPitch = 0f;
 	private float currentRoll = 0f;
 	private GameState gameState = new GameState();
+	private static long particleID = 0;
+	private PreloadTextures textures = null;
+
+	public static synchronized String createID() {
+	    return String.valueOf(particleID++);
+	}    
 
 	public MyGame(String serverAddr, int serverPort) {
 		super();
@@ -168,6 +180,7 @@ public class MyGame extends VariableFrameRateGame {
 		setupAmbientLight(sm);
 		setupPointLight(sm);
 		selectTrack(1);
+		textures = new PreloadTextures(this);
 	}
 
 	private void initMeshes() throws IOException {
@@ -299,9 +312,13 @@ public class MyGame extends VariableFrameRateGame {
 		return plane.getWorldHeight(x, z);
 	}
 
-	protected boolean getIsSpeedBoost(float x, float z) {
+	protected boolean getIsSpeedBoost(float x, float z, Vector3 facing, float scale) {
 		Tessellation plane = getEngine().getSceneManager().getTessellation("plane");
-		return plane.getIsSpeedBoost(x, z);
+		return (
+			plane.getIsSpeedBoost(x + facing.x() * scale, z + facing.z() * scale) ||
+			plane.getIsSpeedBoost(x, z) ||
+			plane.getIsSpeedBoost(x - facing.x() * scale, z - facing.z() * scale)
+		);
 	}
 
 	
@@ -312,7 +329,7 @@ public class MyGame extends VariableFrameRateGame {
 		Vector3 fv = playerAvatar.getWorldForwardAxis();
 		
 		// Handle speed boost
-		setOnSpeedBoost(getIsSpeedBoost(lp.x(), lp.z()));
+		setOnSpeedBoost(getIsSpeedBoost(lp.x(), lp.z(), fv, 1.5f));
 		
 		// Handle collision spinning
 		if (isSpinning()) {
@@ -410,7 +427,7 @@ public class MyGame extends VariableFrameRateGame {
 		// Must check if gravity has put us below ground (or going uphill)
 		if (currentHeight < groundHeight) {
 			// if we were falling with enough speed, bounce
-			if (!isOnGround && vUp < -3f) {
+			if (!isOnGround && vUp < -5f) {
 				vUp = Math.abs(vUp) / 8;
 			}
 			// If not enough downward velocity, just be on the ground
@@ -883,7 +900,6 @@ public class MyGame extends VariableFrameRateGame {
 		itemN.setLocalPosition(playerNode.getWorldPosition());
 		itemN.setLocalRotation(playerAvatar.getWorldRotation());
 		itemN.moveBackward(1.1f);
-		itemN.moveDown(0.3f);
 		gameState.updateItem(item.getID(), itemN.getWorldPosition(), itemN.getWorldRotation());
 		clientProtocol.updateItem(
 			item.getID(),
@@ -897,6 +913,7 @@ public class MyGame extends VariableFrameRateGame {
 		try {
 			SceneManager sm = getEngine().getSceneManager();
 			sm.destroySceneNode(ghostID.toString());
+			sm.destroyEntity(ghostID.toString());
 			gameState.getGhostAvatars().remove(ghostID);
 		}
 		catch (Exception e) {
@@ -919,11 +936,16 @@ public class MyGame extends VariableFrameRateGame {
 		try {
 			SceneManager sm = getEngine().getSceneManager();
 			Entity itemE = sm.createEntity(itemID.toString(), "banana.obj");
+			itemE.setCanReceiveShadows(false);
 			SceneNode itemN = sm.getRootSceneNode().createChildSceneNode(itemID.toString());
 			itemN.scale(BANANA_SCALE, BANANA_SCALE, BANANA_SCALE);
 			itemN.attachObject(itemE);
 			Item newItem = new Item(itemID, ItemType.getType(itemType));
 			gameState.getItems().put(itemID, newItem);
+			ItemGrowthController itemC = new ItemGrowthController();
+			itemC.addNode(itemN);
+			getEngine().getSceneManager().addController(itemC);
+			
 			return newItem;
 		}
 		catch (Exception e) {
@@ -1150,5 +1172,37 @@ public class MyGame extends VariableFrameRateGame {
 			speedBoostTimer = SPEED_BOOST_DURATION;
 		}
 		this.isOnSpeedBoost = isOnSpeedBoost;
+	}
+
+	public void itemBoxExplosion(Vector3 pos, Vector3 force) {
+		final float PARTICLE_COUNT  = 15;
+		for (int i = 0; i < PARTICLE_COUNT; i++) {
+			Entity particleE = null;
+			try {
+				particleE = getEngine().getSceneManager().createEntity(createID(), "plane.obj");
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			particleE.setCanReceiveShadows(false);
+			SceneNode particleN = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(particleE.getName());
+			float height = getGroundHeight(pos.x(), pos.z());
+			particleN.setLocalPosition(pos.x(), height, pos.z());
+			particleN.attachObject(particleE);
+			ParticleController particleC = new ParticleController(
+				this,
+				particleN,
+				force
+			);
+			particleC.addNode(particleN);
+			getEngine().getSceneManager().addController(particleC);
+			
+			
+			CullingState cullingState = (CullingState) getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.CULLING);
+			cullingState.setCulling(CullingState.Culling.DISABLED);
+			particleE.setRenderState(cullingState);
+			TextureState tstate = (TextureState) getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+			tstate.setTexture(textures.getRandomTexture());
+			particleE.setRenderState(tstate);
+		}
 	}
 }

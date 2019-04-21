@@ -598,11 +598,11 @@ final class GenericSceneManager implements SceneManager {
     	Iterator<Node.Controller> iter = nodeControllers.iterator();
     	while (iter.hasNext()) {
     		Node.Controller nc = iter.next();
-    		if (nc.isShouldDelete()) {
-    			iter.remove();
-        	}
-    		else if (nc.isEnabled()) {
+    		if (nc.isEnabled()) {
                 nc.update(time);
+        		if (nc.isShouldDelete()) {
+        			iter.remove();
+            	}
             }
     	}
     }

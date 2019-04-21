@@ -318,6 +318,8 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
                 return new GL4TextureState(capabilities, canvas);
             case FRONT_FACE:
                 return new GL4FrontFaceState(canvas);
+            case CULLING:
+                return new GL4CullingState(canvas);
             default:
                 throw new RuntimeException("Unimplemented " + RenderState.Type.class.getSimpleName() + ": " + type);
         }
@@ -724,6 +726,7 @@ public final class GL4RenderSystem implements RenderSystem, GLEventListener {
 	            program.unbind();
 	
 	            ctx.notifyDispose();
+	        	gl.glEnable(GL4.GL_CULL_FACE);
 	        }
 	        
 	        // Render ITEM_BOX back face
