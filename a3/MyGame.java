@@ -823,9 +823,11 @@ public class MyGame extends VariableFrameRateGame {
 	
 	public void updateGameStateDisplay() {
 		SceneManager sm = getEngine().getSceneManager();
+		float CAR_HEIGHT_OFFSET = 0.3f;
 		for (Entry<UUID, GhostAvatar> entry : gameState.getGhostAvatars().entrySet()) {
 			SceneNode ghostN = sm.getSceneNode(entry.getKey().toString());
 			ghostN.setLocalPosition(entry.getValue().getPos());
+			ghostN.moveUp(CAR_HEIGHT_OFFSET);
 			ghostN.setLocalRotation(entry.getValue().getRot());
 		}
 		for (Entry<UUID, Item> entry : gameState.getItems().entrySet()) {
