@@ -15,7 +15,9 @@ public class TurnLeftRightAction extends AbstractInputAction {
 	@Override
 	public void performAction(float time, Event e) {
 		if (Math.abs(e.getValue()) > JOYSTICK_DEADZONE) {
-			g.setDesiredTurn(-e.getValue());
+			if (!g.isRacingInputDisabled()) {
+				g.setDesiredTurn(-e.getValue());
+			}
 		}
 	}
 }

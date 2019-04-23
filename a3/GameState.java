@@ -12,6 +12,16 @@ public class GameState {
 	private Map<UUID, GhostAvatar> ghostAvatars = Collections.synchronizedMap(new HashMap<UUID, GhostAvatar>());
 	private Map<UUID, ItemBox> itemBoxes = Collections.synchronizedMap(new HashMap<UUID, ItemBox>());
 	private Map<UUID, Item> items =  Collections.synchronizedMap(new HashMap<UUID, Item>());
+	private long elapsedRaceTime;
+	private boolean raceStarted = false;
+	
+	public boolean hasRaceStarted() {
+		return raceStarted;
+	}
+	
+	public void setRaceStarted(boolean raceStarted) {
+		this.raceStarted = raceStarted;
+	}
 	
 	public GameState() {
 		
@@ -69,5 +79,13 @@ public class GameState {
 	public void updateItem(UUID itemID, Vector3 itemPos, Matrix3 itemRot) {
 		items.get(itemID).setPos(itemPos);
 		items.get(itemID).setRot(itemRot);
+	}
+
+	public long getElapsedRaceTime() {
+		return elapsedRaceTime;
+	}
+
+	public void setElapsedRaceTime(long elapsedRaceTime) {
+		this.elapsedRaceTime = elapsedRaceTime;
 	}
 }

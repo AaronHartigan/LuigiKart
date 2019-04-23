@@ -13,6 +13,8 @@ public class StartDriftingAction extends AbstractInputAction {
 
 	@Override
 	public void performAction(float time, Event evt) {
-		g.setDrifting(true);
+		if (!g.isRacingInputDisabled()) {
+			g.setDrifting(true);
+		}
 	}
 }

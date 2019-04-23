@@ -62,7 +62,6 @@ public class MyGame extends VariableFrameRateGame {
 
 	private GenericInputManager im = new GenericInputManager();
 	private GL4RenderSystem rs;
-	private int elapsedMs = 0;
 	private float MOVE_SPEED = 0.01f;
 	private float ROTATE_SPEED = 0.1f;
 	private ScriptEngine jsEngine = null;
@@ -76,7 +75,7 @@ public class MyGame extends VariableFrameRateGame {
 	private ProtocolType serverProtocol;
 	private ProtocolClient clientProtocol;
 	private Item item = null;
-	private boolean isConnected = false;
+	private ClientState clientState = new ClientState();
 	private boolean isOnGround = true;
 	private float gravity = -10f;
 	private boolean isAccelerating = false;
@@ -91,7 +90,6 @@ public class MyGame extends VariableFrameRateGame {
 	private float SPINOUT_DURATION = 1500f;
 	private float speedBoostTimer = 0f;
 	private float SPEED_BOOST_DURATION = 1000f;
-	private float turningDisabledTimer = 0f;
 	private float DRIFTING_TURN_RATE = 75f;
 	private boolean isDrifting = false;
 	private float driftingDirection = 0f;
@@ -108,6 +106,9 @@ public class MyGame extends VariableFrameRateGame {
 	private static long particleID = 0;
 	private PreloadTextures textures = null;
 	private TimerGui timerGui = null;
+	private int raceLap = 0;
+	private int currentZone = 3;
+	private final boolean SHOW_PACKET_MESSAGES = false;
 
 	public static synchronized String createID() {
 	    return String.valueOf(particleID++);
@@ -137,7 +138,23 @@ public class MyGame extends VariableFrameRateGame {
 	
 	@Override
 	protected void setupWindow(RenderSystem rs, GraphicsEnvironment ge) {
-		RenderWindow rw = rs.createRenderWindow(new DisplayMode(1000, 700, 24, 60), false);
+		GraphicsDevice device = ge.getDefaultScreenDevice();
+		DisplayMode[] modes = device.getDisplayModes();
+		DisplayMode fullscreen = modes[modes.length - 1];
+		DisplayMode windowed = new DisplayMode(1000, 700, 32, 60);
+		/*
+		DisplaySettingsDialog dsd = new DisplaySettingsDialog(ge.getDefaultScreenDevice());
+		dsd.showIt();
+		System.out.println(dsd.getSelectedDisplayMode());
+		RenderWindow rw = rs.createRenderWindow(
+			dsd.getSelectedDisplayMode(),
+			dsd.isFullScreenModeSelected()
+		);
+		*/
+		RenderWindow rw = rs.createRenderWindow(
+			windowed,
+			false
+		);
 		Configuration conf = getEngine().getConfiguration();
 		ImageIcon icon = new ImageIcon(conf.valueOf("assets.icons.window"));
 		rw.setIconImage(icon.getImage());
@@ -179,7 +196,6 @@ public class MyGame extends VariableFrameRateGame {
 
 		setupAmbientLight(sm);
 		setupPointLight(sm);
-		selectTrack(1);
 		setTextures(new PreloadTextures(this));
 		timerGui = new TimerGui(this);
 	}
@@ -216,6 +232,7 @@ public class MyGame extends VariableFrameRateGame {
 			System.out.println("Missing protocol host");
 		}
 		else {
+			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Join Message");
 			clientProtocol.sendJoinMessage();
 		}
 	}
@@ -251,32 +268,36 @@ public class MyGame extends VariableFrameRateGame {
 		im.update(elapsTime);
 		updateHUD(engine, elapsTime);
 		updatePlayerPhysics(elapsTime);
+		updateLapInfo();
 		long modifiedTime = script.lastModified();
 		if (modifiedTime > lastScriptModifiedTime) {
 			lastScriptModifiedTime = modifiedTime;
 			updateScriptConstants();
 		}
-		clientProtocol.updatePlayerInformation(
-			this.getPlayerPosition(),
-			this.getPlayerRotation(),
-			vForward
-		);
+		if (hasRaceStarted()) {
+			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Update Information");
+			clientProtocol.updatePlayerInformation(
+				this.getPlayerPosition(),
+				this.getPlayerRotation(),
+				vForward
+			);
+		}
 		updatePlayerItem();
 		updateGameStateDisplay();
 		updateItemBoxesRotation();
-		timerGui.update(elapsedMs);
-		//System.out.println(playerNode.getWorldPosition());
+		// PRINT PLAYER POSITION
+		// System.out.println(playerNode.getWorldPosition());
 	}
 
 	public void updateHUD(Engine engine, float elapsTime) {
 		rs = (GL4RenderSystem) engine.getRenderSystem();
-		elapsedMs += elapsTime;
 		
 		ArrayList<HUDString> stringList = rs.getHUDStringsList();
 
 		int bottomLeftX = 15;
 		int bottomLeftY = 15;
-		stringList.get(0).setAll("Lap 1/3", bottomLeftX, bottomLeftY);
+		int lap = raceLap == 0 ? 1 : raceLap;
+		stringList.get(0).setAll("Lap " + lap + "/3", bottomLeftX, bottomLeftY);
 		
 		int topLeftX = 15;
 		int topLeftY = rs.getCanvas().getHeight() - 30;
@@ -285,9 +306,6 @@ public class MyGame extends VariableFrameRateGame {
 		int bottomRightX = rs.getCanvas().getWidth() - 100;
 		int bottomRightY = 15;
 		stringList.get(2).setAll("" + Math.round((vForward + getGravityForce()) * 3) + " MPH", bottomRightX, bottomRightY);
-		
-		int topRightX = rs.getCanvas().getWidth() - 175;
-		int topRightY = rs.getCanvas().getHeight() - 30;
 	}
 
 	private void processNetworking(float elapsTime) {
@@ -330,7 +348,7 @@ public class MyGame extends VariableFrameRateGame {
 		}
 		
 		// Handle turning
-		if (!getTurningDisabled()) {
+		if (!isRacingInputDisabled()) {
 			desiredTurnRollingAverage = desiredTurnRollingAverage * 0.9f + getDesiredTurn() * 0.1f;
 			float dTurn = desiredTurnRollingAverage - actualTurn;
 			actualTurn += dTurn / 6;
@@ -635,6 +653,12 @@ public class MyGame extends VariableFrameRateGame {
 					new TogglePerspective((GL4RenderSystem) getEngine().getRenderSystem()),
 					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
 				);
+				im.associateAction(
+					c,
+					Component.Identifier.Key.RETURN,
+					new JoinTrackAction(this),
+					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+				);
 			}
 			else if (c.getType() == Controller.Type.GAMEPAD || c.getType() == Controller.Type.STICK) {
 				im.associateAction(
@@ -765,14 +789,6 @@ public class MyGame extends VariableFrameRateGame {
 		return ROTATE_SPEED;
 	}
 
-	public boolean isConnected() {
-		return isConnected;
-	}
-
-	public void setConnected(boolean isConnected) {
-		this.isConnected = isConnected;
-	}
-
 	public Vector3 getPlayerPosition() {
 		return playerNode.getWorldPosition();
 	}
@@ -892,6 +908,7 @@ public class MyGame extends VariableFrameRateGame {
 		itemN.setLocalRotation(playerAvatar.getWorldRotation());
 		itemN.moveBackward(1.1f);
 		gameState.updateItem(item.getID(), itemN.getWorldPosition(), itemN.getWorldRotation());
+		if (SHOW_PACKET_MESSAGES) System.out.println("Sending Update Item");
 		clientProtocol.updateItem(
 			item.getID(),
 			itemN.getWorldPosition(),
@@ -911,11 +928,7 @@ public class MyGame extends VariableFrameRateGame {
 			e.printStackTrace();
 		}
 	}
-	
-	public void selectTrack(int trackID) {
-		clientProtocol.selectTrack(trackID);
-	}
-	
+
 	// We just assume client ALWAYS gets this message from the server
 	// If packet is lost, client will never be able to pick up an item again
 	float BANANA_SCALE = 0.4f;
@@ -958,6 +971,7 @@ public class MyGame extends VariableFrameRateGame {
 			item = null;
 			// Assume server ALWAYS gets this message.
 			// If packet is lost, client will never be able to pick up another item
+			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Throw Item");
 			clientProtocol.sendThrowItem();
 		}
 	}
@@ -998,6 +1012,7 @@ public class MyGame extends VariableFrameRateGame {
     public void shutdown() {
     	super.shutdown();
         if (clientProtocol != null) {
+        	if (SHOW_PACKET_MESSAGES) System.out.println("Sending Bye");
         	clientProtocol.sendByeMessage();
         }
     }
@@ -1086,7 +1101,6 @@ public class MyGame extends VariableFrameRateGame {
 	}
 
     protected void handleCollision() {
-    	setTurningDisabledTimer(SPINOUT_DURATION);
     	setSpinoutTimer(SPINOUT_DURATION);
     }
 
@@ -1110,10 +1124,6 @@ public class MyGame extends VariableFrameRateGame {
     	spinDirection = direction;
     }
 
-	private boolean getTurningDisabled() {
-    	return turningDisabledTimer > 0f;
-    }
-
 	protected float getMaxSpeedModifier() {
     	if (spinoutTimer <= 0f) {
     		if (speedBoostTimer > 0f) {
@@ -1125,7 +1135,6 @@ public class MyGame extends VariableFrameRateGame {
     }
 
 	public void updateTimers(float elapsedMS) {
-		setTurningDisabledTimer(Math.max(0, turningDisabledTimer - elapsedMS));
 		setSpinoutTimer(Math.max(0, spinoutTimer - elapsedMS));
 		setSpeedBoostTimer(Math.max(0, speedBoostTimer - elapsedMS));
 		calculateSpinDirection();
@@ -1133,10 +1142,6 @@ public class MyGame extends VariableFrameRateGame {
 
 	private void setSpeedBoostTimer(float time) {
 		this.speedBoostTimer = time;
-	}
-
-	private void setTurningDisabledTimer(float turningDisabledTimer) {
-		this.turningDisabledTimer = turningDisabledTimer;
 	}
 
 	public void updateItem(UUID itemID, Vector3 itemPos, Matrix3 itemRot, int itemType) {
@@ -1159,8 +1164,8 @@ public class MyGame extends VariableFrameRateGame {
 	}
 
 	public void setOnSpeedBoost(boolean isOnSpeedBoost) {
-		if (isOnSpeedBoost) {
-			speedBoostTimer = SPEED_BOOST_DURATION;
+		if (isOnSpeedBoost && !isSpinning()) {
+			setSpeedBoostTimer(SPEED_BOOST_DURATION);
 		}
 		this.isOnSpeedBoost = isOnSpeedBoost;
 	}
@@ -1204,5 +1209,121 @@ public class MyGame extends VariableFrameRateGame {
 
 	public void setTextures(PreloadTextures textures) {
 		this.textures = textures;
+	}
+	
+	public void startRace(int trackID) {
+		if (clientState.getJoinedTrack() == trackID) {
+			gameState.setRaceStarted(true);
+		}
+	}
+	
+	public boolean hasRaceStarted() {
+		return gameState.hasRaceStarted();
+	}
+	
+	public void inputAction() {
+		if (!clientState.hasTrack()) {
+			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Join Track");
+			clientProtocol.joinTrack(clientState.getSelectedTrack());	
+		}
+		else {
+			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Start Track");
+			clientProtocol.sendStartMessage(clientState.getJoinedTrack());
+		}
+	}
+
+	public ClientState getClientState() {
+		return clientState;
+	}
+	
+	public boolean isRacingInputDisabled() {
+		if (isRacing() && gameState.getElapsedRaceTime() < 0) {
+			return true;
+		}
+		if (isRacing() && !isSpinning()) {
+			return false;
+		}
+		return true;
+	}
+	
+	public boolean isRacing() {
+		return hasRaceStarted() && !hasRaceFinished();
+	}
+	
+	public boolean hasRaceFinished() {
+		return clientState.isRaceFinished();
+	}
+
+	public void updateRaceTime(long raceTime) {
+		if (isRacing()) {
+			timerGui.update(raceTime);
+		}
+	}
+	
+	protected void finishRace() {
+		clientState.setRaceFinished(true);
+	}
+	
+	
+	public void updateLapInfo() {
+		int newZone = getZone();
+		// System.out.println(currentZone + " -> " + newZone);
+		if (currentZone != newZone && newZone > currentZone) {
+			currentZone = newZone;
+		}
+		else if (currentZone == 3 && newZone == 0) {
+			if (raceLap < 3) {
+				raceLap += 1;
+			}
+			else {
+				finishRace();
+			}
+			currentZone = newZone;
+		}
+	}
+
+	protected int getZone() {
+		if (hasRaceFinished()) {
+			return currentZone;
+		}
+		Vector3 coord = playerNode.getWorldPosition();
+		final float ZONE_3_Z = -85.36f;
+		final float ZONE_1_Z = 50f;
+		final float ZONE_0_2_X = -35.8f;
+		switch (currentZone) {
+		case 0:
+			if (coord.z() > ZONE_1_Z) {
+				return 1;
+			}
+			return 0;
+		case 1:
+			if (coord.z() < ZONE_1_Z && coord.x() > ZONE_0_2_X) {
+				return 2;
+			}
+			return 1;
+		case 2:
+			if (coord.z() < ZONE_3_Z) {
+				return 3;
+			}
+			return 2;
+		case 3:
+			if (coord.z() > ZONE_3_Z && coord.x() < ZONE_0_2_X) {
+				return 0;
+			}
+			return 3;
+		}
+		return -1;
+	}
+	
+	protected boolean isPastHalfwayPoint(Vector3 point) {
+		return (point.z() < 50f && point.z() > 50f);
+	}
+	
+	protected boolean isPastFinishLine(Vector3 point) {
+		return (point.z() < -89f && point.z() > -89f);
+	}
+	
+	public GameState getGameState() {
+		return gameState;
 	}
 }

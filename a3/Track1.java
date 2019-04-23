@@ -32,7 +32,6 @@ public class Track1 {
 	}
 	
 	public void initTrack(GameState gs) {
-		System.out.println("Initializing Track");
 		for (Vector3 itemBox : itemBoxes) {
 			// I think this is not creating a copy
 			// Which will keep this track in memory.

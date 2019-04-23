@@ -12,7 +12,9 @@ public class StartAccelerationAction extends AbstractInputAction {
 	}
 	@Override
 	public void performAction(float time, Event evt) {
-		g.setAccelerating(true);
+		if (!g.isRacingInputDisabled()) {
+			g.setAccelerating(true);
+		}
 	}
 
 }

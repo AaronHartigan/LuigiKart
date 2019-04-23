@@ -216,6 +216,7 @@ void main()
         special += get_light_effect(ssbo.lights[i], material);
 	effect += ((1 - shadow) * special);
     fragment = texture2D(texture_sampler, fs_in.vertex_texcoord) * effect;
+	fragment *= 2;
 	fragment.w = 0.5;
 	//fragment = vec4(vec3(depth), 1.0);
 }

@@ -15,7 +15,9 @@ public class StartDriftingDeviceAction extends AbstractInputAction {
 	@Override
 	public void performAction(float time, Event e) {
 		if (Math.abs(e.getValue()) > JOYSTICK_DEADZONE) {
-			g.setDrifting(true);
+			if (!g.isRacingInputDisabled()) {
+				g.setDrifting(true);
+			}
 		}
 	}
 }

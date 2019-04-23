@@ -21,14 +21,17 @@ import ray.rml.Vector3f;
 
 public class GameServerUDP extends GameConnectionServer<UUID> {
 	private GameState gameState = null;
+	private ServerState serverState = new ServerState();
 	private long gameTimer = System.currentTimeMillis();
 	private long elapsedTime = 0;
 	private int currentTrack = -1;
 	private long TICK_RATE = 60;
+	private int MAX_PLAYERS_PER_TRACK = 8;
 
 	public GameServerUDP(int localPort, ProtocolType protocolType, GameState gameState) throws IOException {
 		super(localPort, protocolType);
 		this.gameState = gameState;
+		initTrack(1);
 		sendPackets();
 	}
 	
@@ -80,14 +83,18 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			gameState.removeGhostAvatar(clientID);
 			sendByeMessages(clientID);
 			removeClient(clientID);
+			serverState.getConnectedPlayers().remove(clientID);
 		}
-		else if (messageTokens[0].compareTo("track") == 0) {
-			int trackID = Integer.parseInt(messageTokens[1]);
-			if (isATrackSelected()) {
-				return;
+		else if (messageTokens[0].compareTo("joinTrack") == 0) {
+			UUID clientID = UUID.fromString(messageTokens[1]);
+			int trackID = Integer.parseInt(messageTokens[2]);
+			if (serverState.getConnectedPlayers().size() < MAX_PLAYERS_PER_TRACK) {
+				serverState.getConnectedPlayers().put(clientID, new PlayerState(clientID, trackID, System.currentTimeMillis()));
+				sendTrackJoinMessages(trackID, clientID, true);
 			}
-			initTrack(trackID);
-			sendTrackMessages(trackID);
+			else {
+				sendTrackJoinMessages(trackID, clientID, false);
+			}
 		}
 		else if (messageTokens[0].compareTo("throwItem") == 0) {
 			UUID avatarID = UUID.fromString(messageTokens[1]);
@@ -108,12 +115,53 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 				Matrix3f.createFrom(rot)
 			);
 		}
+		else if (messageTokens[0].compareTo("startRace") == 0) {
+			UUID clientID = UUID.fromString(messageTokens[1]);
+			int trackID = Integer.parseInt(messageTokens[2]);
+			gameState.setRaceStarted(true);
+			gameState.setElapsedRaceTime(-3000);
+			sendStartRace(trackID);
+		}
 	}
 
-	private void sendTrackMessages(int trackID) {
-		System.out.println("Sending Track Message");
+	private void sendTrackJoinMessages(int trackID, UUID clientID, boolean success) {
+		System.out.println("Sending Track Join Message");
+		if (success) {
+			try {
+				String message = new String(
+					"joinTrack,"
+					+ trackID + ","
+					+ clientID.toString() + ","
+					+ "success"
+				);
+				sendPacket(message, clientID);
+			}
+			catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		else {
+			try {
+				String message = new String(
+						"joinTrack,"
+						+ trackID + ","
+						+ clientID.toString() + ","
+						+ "failure"
+					);
+				sendPacket(message, clientID);
+			}
+			catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	public void sendStartRace(int trackID) {
 		try {
-			String message = new String("track," + trackID);
+			String message = new String(
+				"startRace,"
+				+ trackID
+			);
 			sendPacketToAll(message);
 		}
 		catch (IOException e) {
@@ -126,6 +174,16 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
         	long newTime = System.currentTimeMillis();
         	elapsedTime = newTime - gameTimer;
         	gameTimer = newTime;
+        	if (gameState.hasRaceStarted()) {
+            	gameState.setElapsedRaceTime(gameState.getElapsedRaceTime() + elapsedTime);
+            	try {
+        			String message = new String("raceTime," + gameState.getElapsedRaceTime());
+        			sendPacketToAll(message);
+        		}
+        		catch (IOException e) {
+        			e.printStackTrace();
+        		}
+        	}
         	checkCollisions();
         	updateItemBoxTimers();
             Iterator<Entry<UUID, GhostAvatar>> avatarIter = gameState.getGhostAvatars().entrySet().iterator();
@@ -330,8 +388,12 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 		// format: join, success or join, failure
 		try {
 			String message = new String("join,");
-			if (success) message += "success";
-			else message += "failure";
+			if (success) {
+				message += "success";
+			}
+			else {
+				message += "failure";
+			}
 			sendPacket(message, clientID);
 		}
 		catch (IOException e) {
@@ -351,5 +413,6 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 		System.out.println("Initializing Track: " + trackID);
 		setTrack(trackID);
 		new Track1().initTrack(gameState);
+		System.out.println("Finished Initializing Track: " + trackID);
 	}
 }

@@ -13,6 +13,8 @@ public class TurnLeftAction extends AbstractInputAction {
 
 	@Override
 	public void performAction(float time, Event evt) {
-		g.setDesiredTurn(1f);
+		if (!g.isRacingInputDisabled()) {
+			g.setDesiredTurn(1f);
+		}
 	}
 }

@@ -1,7 +1,6 @@
 package a3;
 
 import java.io.IOException;
-import java.util.Random;
 
 import ray.rage.asset.texture.Texture;
 

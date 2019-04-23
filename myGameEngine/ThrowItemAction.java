@@ -13,6 +13,8 @@ public class ThrowItemAction extends AbstractInputAction {
 
 	@Override
 	public void performAction(float time, Event evt) {
-		g.throwItem();
+		if (!g.isRacingInputDisabled()) {
+			g.throwItem();
+		}
 	}
 }

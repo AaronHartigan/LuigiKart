@@ -18,7 +18,9 @@ public class TimerGui {
 	private Entity ms2;
 	private Entity colon0;
 	private Entity colon1;
+	private Entity countdown;
 	private Entity background;
+	private SceneNode countdownN;
 
 	private TextureState tstate;
 	private final float NUMBER_SCALE = 0.035f;
@@ -27,6 +29,7 @@ public class TimerGui {
 	private final float SHIFT_AMOUNT = NUMBER_SCALE * 1.9f;
 	private final float COLON_OFFSET = 0.045f;
 	private final float BACKGROUND_SCALE = 0.3f;
+	private final float COUNTDOWN_SCALE = 0.5f;
 	
 	public TimerGui(MyGame g) {
 		this.g = g;
@@ -40,6 +43,7 @@ public class TimerGui {
 			ms2 = g.getEngine().getSceneManager().createEntity("ms2", "plane.obj");
 			colon0 = g.getEngine().getSceneManager().createEntity("colon0", "plane.obj");
 			colon1 = g.getEngine().getSceneManager().createEntity("colon1", "plane.obj");
+			countdown = g.getEngine().getSceneManager().createEntity("countdown", "plane.obj");
 			
 			background.setGpuShaderProgram(g.getEngine().getSceneManager().getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.GUI_BACKGROUND));
 			minute1.setGpuShaderProgram(g.getEngine().getSceneManager().getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.GUI));
@@ -50,6 +54,7 @@ public class TimerGui {
 			ms2.setGpuShaderProgram(g.getEngine().getSceneManager().getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.GUI));
 			colon0.setGpuShaderProgram(g.getEngine().getSceneManager().getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.GUI));
 			colon1.setGpuShaderProgram(g.getEngine().getSceneManager().getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.GUI));
+			countdown.setGpuShaderProgram(g.getEngine().getSceneManager().getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.GUI));
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -67,8 +72,16 @@ public class TimerGui {
 		ms0.setRenderState(tstate);
 		ms1.setRenderState(tstate);
 		ms2.setRenderState(tstate);
+		countdown.setRenderState(tstate);
+		
+		tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+		tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.COLON));
+
 		colon0.setRenderState(tstate);
 		colon1.setRenderState(tstate);
+		
+		countdownN = g.getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(countdown.getName());
+		countdownN.scale(COUNTDOWN_SCALE, COUNTDOWN_SCALE, COUNTDOWN_SCALE);
 		
 		SceneNode backgroundN = g.getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(background.getName());
 		backgroundN.attachObject(background);
@@ -116,7 +129,12 @@ public class TimerGui {
 		ms2N.translate(STARTING_X + SHIFT_AMOUNT * 4 + COLON_OFFSET * 4, STARTING_Y, 0f);
 	}
 	
-	public void update(int time) {
+	public void update(long timeL) {
+		g.getGameState().setElapsedRaceTime(timeL);
+		int time = (int) timeL;
+		if (time < 0) {
+			time = 0;
+		}
 		int ms2T = time % 10;
 		int ms1T = (time / 10) % 10;
 		int ms0T = (time / 100) % 10;
@@ -128,7 +146,14 @@ public class TimerGui {
 		final int COLON = 10;
 
 		// System.out.println("" + min0T + min1T + ":" + sec0T + sec1T + ":" + ms0T + ms1T + ms2T);
-
+		countdownN.detachAllObjects();
+		if (timeL < 0) {
+			countdownN.attachObject(countdown);
+			tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+			setTexture((int) Math.min(3, (Math.abs(timeL) / 1000) % 10 + 1));
+			countdown.setRenderState(tstate);
+		}
+		
 		tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
 		setTexture(min1T);
 		minute1.setRenderState(tstate);

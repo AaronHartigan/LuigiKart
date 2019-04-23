@@ -37,11 +37,11 @@ public class ProtocolClient extends GameConnectionClient {
 		if (messageTokens[0].compareTo("join") == 0) {
 			System.out.println("Client Message: " + message);
 			if (messageTokens[1].compareTo("success") == 0) {
-				game.setConnected(true);
+				game.getClientState().setConnected(true);
 				sendCreateMessage(game.getPlayerPosition());
 			}
 			else if (messageTokens[1].compareTo("failure") == 0) {
-				game.setConnected(false);
+				game.getClientState().setConnected(false);
 			}
 		}
 		else if (messageTokens[0].compareTo("bye") == 0) {
@@ -89,9 +89,26 @@ public class ProtocolClient extends GameConnectionClient {
 			long growthTimer = Long.parseLong(messageTokens[7]);
 			game.updateItemBox(id, pos, isActive, isGrowing, growthTimer);
 		}
-		else if(messageTokens[0].compareTo("track") == 0) { 
+		else if(messageTokens[0].compareTo("joinTrack") == 0) { 
 			int trackID = Integer.parseInt(messageTokens[1]);
-			// do something with this later...
+			UUID clientID = UUID.fromString(messageTokens[2]);
+			boolean success = messageTokens[3].compareTo("success") == 0;
+			if (clientID.equals(id)) {
+				if (success) {
+					game.getClientState().setJoinedTrack(trackID);
+				}
+				else {
+					game.getClientState().setJoinedTrack(0);
+					game.getClientState().setConnectionError("Track is full.");
+				}
+			}
+			else {
+				
+			}
+		}
+		else if(messageTokens[0].compareTo("startRace") == 0) { 
+			int trackID = Integer.parseInt(messageTokens[1]);
+			game.startRace(trackID);
 		}
 		else if(messageTokens[0].compareTo("gotItem") == 0) { 
 			UUID itemID = UUID.fromString(messageTokens[1]);
@@ -139,6 +156,10 @@ public class ProtocolClient extends GameConnectionClient {
 			);
 			game.itemBoxExplosion(itemPos, force);
 		}
+		else if(messageTokens[0].compareTo("raceTime") == 0) { 
+			long raceTime = Long.parseLong(messageTokens[1]);
+			game.updateRaceTime(raceTime);
+		}
 		else if(messageTokens[0].compareTo("wsds") == 0) { 
 			// etc…..
 			// rec. “wants…”
@@ -169,6 +190,16 @@ public class ProtocolClient extends GameConnectionClient {
 			e.printStackTrace();
 		}
 	}
+	
+	public void sendStartMessage(int trackID) {
+		try {
+			String message = "startRace," + id.toString() + "," + trackID;
+			sendPacket(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
 
 	public void updatePlayerInformation(Vector3 pos, Matrix3 rot, float vForward) {
 		try {
@@ -193,9 +224,13 @@ public class ProtocolClient extends GameConnectionClient {
 		}
 	}
 
-	public void selectTrack(int i) {
+	public void joinTrack(int trackID) {
 		try {
-			String message = "track," + i;
+			String message = (
+				"joinTrack,"
+				+ id.toString() + ","
+				+ trackID
+			);
 			sendPacket(message);
 		}
 		catch (IOException e) {
