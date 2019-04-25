@@ -96,6 +96,11 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 				sendTrackJoinMessages(trackID, clientID, false);
 			}
 		}
+		else if (messageTokens[0].compareTo("finishTrack") == 0) {
+			UUID clientID = UUID.fromString(messageTokens[1]);
+			gameState.shouldRemoveGhostAvatar(clientID);
+			serverState.getConnectedPlayers().remove(clientID);
+		}
 		else if (messageTokens[0].compareTo("throwItem") == 0) {
 			UUID avatarID = UUID.fromString(messageTokens[1]);
 			GhostAvatar ga = gameState.getGhostAvatars().get(avatarID);
@@ -120,54 +125,29 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			int trackID = Integer.parseInt(messageTokens[2]);
 			gameState.setRaceStarted(true);
 			gameState.setElapsedRaceTime(-3000);
+			generateNPCs();
 			sendStartRace(trackID);
 		}
 	}
 
-	private void sendTrackJoinMessages(int trackID, UUID clientID, boolean success) {
-		System.out.println("Sending Track Join Message");
-		if (success) {
-			try {
-				String message = new String(
-					"joinTrack,"
-					+ trackID + ","
-					+ clientID.toString() + ","
-					+ "success"
-				);
-				sendPacket(message, clientID);
-			}
-			catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
-		else {
-			try {
-				String message = new String(
-						"joinTrack,"
-						+ trackID + ","
-						+ clientID.toString() + ","
-						+ "failure"
-					);
-				sendPacket(message, clientID);
-			}
-			catch (IOException e) {
-				e.printStackTrace();
+	private void generateNPCs() {
+		synchronized (gameState) {
+			int players = gameState.getGhostAvatars().size();
+			for (int i = 0; i < MAX_PLAYERS_PER_TRACK - players; i++) {
+				UUID ghostID = UUID.randomUUID();
+				GhostAvatar npc = new GhostAvatar(ghostID);
+				npc.setNPC(true);
+				npc.setPos(Track1.getPosition(MAX_PLAYERS_PER_TRACK - i));
+				gameState.getGhostAvatars().put(ghostID, npc);
 			}
 		}
 	}
 	
-	public void sendStartRace(int trackID) {
-		try {
-			String message = new String(
-				"startRace,"
-				+ trackID
-			);
-			sendPacketToAll(message);
-		}
-		catch (IOException e) {
-			e.printStackTrace();
-		}
+
+	private void updateNPC(GhostAvatar ga) {
+		
 	}
+
 
 	public void sendPackets() {
         while (true) {
@@ -191,6 +171,14 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
                 Map.Entry<UUID, GhostAvatar> pair = (Map.Entry<UUID, GhostAvatar>) avatarIter.next();
                 UUID id = pair.getKey();
                 GhostAvatar ga = pair.getValue();
+                if (ga.isShouldRemove()) {
+        			sendByeMessages(ga.getId());
+                	avatarIter.remove();
+                	continue;
+                }
+                if (ga.isNPC()) {
+                	updateNPC(ga);
+                }
         		try {
         			String message = new String("update," + id.toString() + ",");
         			message += ga.getPos().serialize();
@@ -242,6 +230,54 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
     		}
     	}
 	}
+
+	private void sendTrackJoinMessages(int trackID, UUID clientID, boolean success) {
+		System.out.println("Sending Track Join Message");
+		if (success) {
+			try {
+				String message = new String(
+					"joinTrack,"
+					+ trackID + ","
+					+ clientID.toString() + ","
+					+ "1" + ","
+					+ "success"
+				);
+				sendPacket(message, clientID);
+			}
+			catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		else {
+			try {
+				String message = new String(
+						"joinTrack,"
+						+ trackID + ","
+						+ clientID.toString() + ","
+						+ "-1" + ","
+						+ "failure"
+					);
+				sendPacket(message, clientID);
+			}
+			catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	public void sendStartRace(int trackID) {
+		try {
+			String message = new String(
+				"startRace,"
+				+ trackID
+			);
+			sendPacketToAll(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
 
 	private void updateItemBoxTimers() {
 		Iterator<Entry<UUID, ItemBox>> itemBoxIter = gameState.getItemBoxes().entrySet().iterator();
@@ -407,6 +443,10 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	
 	public Boolean isATrackSelected() {
 		return currentTrack != -1;
+	}
+	
+	private void resetTrack(int trackID) {
+		
 	}
 
 	private void initTrack(int trackID) {

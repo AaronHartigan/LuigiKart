@@ -1,15 +1,11 @@
 package ray.rage.rendersystem.gl4;
 
-import java.util.logging.Logger;
-
 import com.jogamp.opengl.GL4;
 import com.jogamp.opengl.awt.GLCanvas;
 
 import ray.rage.rendersystem.states.CullingState;
 
 public final class GL4CullingState extends GL4AbstractRenderState implements CullingState{
-
-    private static final Logger logger = Logger.getLogger(GL4FrontFaceState.class.getName());
     private Culling culling = Culling.ENABLED;
 
     public GL4CullingState(GLCanvas canvas) {

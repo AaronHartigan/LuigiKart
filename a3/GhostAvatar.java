@@ -13,6 +13,8 @@ public class GhostAvatar {
 	private float velocityForward = 0f;
 	private Vector3 pos = Vector3f.createFrom(0f, 0f, 0f);
 	private Matrix3 rot = Matrix3f.createIdentityMatrix();
+	private boolean shouldRemove = false;
+	private boolean isNPC = false;
 
 	public GhostAvatar(UUID id) {
 		this.setId(id);
@@ -64,5 +66,21 @@ public class GhostAvatar {
 
 	public void setVelocityForward(float velocityForward) {
 		this.velocityForward = velocityForward;
+	}
+
+	public boolean isShouldRemove() {
+		return shouldRemove;
+	}
+
+	public void setShouldRemove(boolean shouldRemove) {
+		this.shouldRemove = shouldRemove;
+	}
+
+	public boolean isNPC() {
+		return isNPC;
+	}
+
+	public void setNPC(boolean isNPC) {
+		this.isNPC = isNPC;
 	}
 }

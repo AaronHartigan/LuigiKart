@@ -92,10 +92,13 @@ public class ProtocolClient extends GameConnectionClient {
 		else if(messageTokens[0].compareTo("joinTrack") == 0) { 
 			int trackID = Integer.parseInt(messageTokens[1]);
 			UUID clientID = UUID.fromString(messageTokens[2]);
-			boolean success = messageTokens[3].compareTo("success") == 0;
+			int position = Integer.parseInt(messageTokens[3]);
+			boolean success = messageTokens[4].compareTo("success") == 0;
 			if (clientID.equals(id)) {
 				if (success) {
 					game.getClientState().setJoinedTrack(trackID);
+					game.setCameraToAvatar();
+					game.setStartingPosition(position);
 				}
 				else {
 					game.getClientState().setJoinedTrack(0);
@@ -254,6 +257,17 @@ public class ProtocolClient extends GameConnectionClient {
 			message += "," + itemPos.x()+"," + itemPos.y() + "," + itemPos.z();
 			message += "," + itemRot.serialize();
 			message += "," + ItemType.getValue(type);
+			sendPacket(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void finishTrack(int selectedTrack) {
+		try {
+			String message = new String("finishTrack," + id.toString());
+			message += "," + selectedTrack;
 			sendPacket(message);
 		}
 		catch (IOException e) {

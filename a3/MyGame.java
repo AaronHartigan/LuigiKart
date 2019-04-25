@@ -109,6 +109,7 @@ public class MyGame extends VariableFrameRateGame {
 	private int raceLap = 0;
 	private int currentZone = 3;
 	private final boolean SHOW_PACKET_MESSAGES = false;
+	private NodeOrbitController cameraController = null; 
 
 	public static synchronized String createID() {
 	    return String.valueOf(particleID++);
@@ -545,19 +546,41 @@ public class MyGame extends VariableFrameRateGame {
 		playerAvatarRotatorN.translate(0f, 0.3f, 0f);
 		//dolphinN.setPhysicsObject(new PhysicsObject());
 
-		SceneNode dolphinCamera = dolphinN.createChildSceneNode(dolphinN.getName() + "Camera");
+		SceneNode skyN = sm.getRootSceneNode().createChildSceneNode("skyNode");
+		skyN.translate(-50f, 15f, -110f);
+		dolphinN.createChildSceneNode(dolphinN.getName() + "Camera");
+		setCameraToSky();
+	}
+	
+	protected void setCameraToSky() {
+		if (cameraController != null) {
+			cameraController.removeAllNodes();
+		}
+		Camera camera = getEngine().getSceneManager().getCamera("MainCamera");
+		SceneNode skyN = getEngine().getSceneManager().getSceneNode("skyNode");
+		camera.detachFromParent();
+		skyN.attachObject(camera);
+		camera.setMode('n');
+	}
+	
+	public void setCameraToAvatar() {
+		Camera camera = getEngine().getSceneManager().getCamera("MainCamera");
+		SceneNode dolphinCamera = getEngine().getSceneManager().getSceneNode("dolphinNodeCamera");
+		SceneNode dolphinN = getEngine().getSceneManager().getSceneNode("dolphinNode");
 
-		Camera camera = sm.getCamera("MainCamera");
+		camera.detachFromParent();
 		dolphinCamera.attachObject(camera);
 		camera.setMode('n');
 		
-		NodeOrbitController noc = new NodeOrbitController(
-			dolphinN,
-			(GL4RenderSystem) getEngine().getRenderSystem(),
-			im
-		);
-		noc.addNode(dolphinCamera);
-		sm.addController(noc);
+		if (cameraController == null) {
+			cameraController = new NodeOrbitController(
+				dolphinN,
+				(GL4RenderSystem) getEngine().getRenderSystem(),
+				im
+			);
+			getEngine().getSceneManager().addController(cameraController);
+		}
+		cameraController.addNode(dolphinCamera);
 	}
 	
 	protected void setupAmbientLight(SceneManager sm) {
@@ -1222,9 +1245,16 @@ public class MyGame extends VariableFrameRateGame {
 	}
 	
 	public void inputAction() {
-		if (!clientState.hasTrack()) {
+		if (clientState.isRaceFinished()) {
+			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Finish Track");
+			clientProtocol.finishTrack(clientState.getSelectedTrack());
+			clientState.setJoinedTrack(0);
+			clientState.setRaceFinished(false);
+			setCameraToSky();
+		}
+		else if (!clientState.hasTrack()) {
 			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Join Track");
-			clientProtocol.joinTrack(clientState.getSelectedTrack());	
+			clientProtocol.joinTrack(clientState.getSelectedTrack());
 		}
 		else {
 			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Start Track");
@@ -1314,16 +1344,17 @@ public class MyGame extends VariableFrameRateGame {
 		}
 		return -1;
 	}
-	
-	protected boolean isPastHalfwayPoint(Vector3 point) {
-		return (point.z() < 50f && point.z() > 50f);
-	}
-	
-	protected boolean isPastFinishLine(Vector3 point) {
-		return (point.z() < -89f && point.z() > -89f);
-	}
-	
+
 	public GameState getGameState() {
 		return gameState;
+	}
+
+	public void setStartingPosition(int position) {
+		Vector3 startingPos = Track1.getPosition(position);
+		playerNode.setLocalPosition(
+			startingPos.x(),
+			getGroundHeight(startingPos.x(), startingPos.z()),
+			startingPos.z()
+		);
 	}
 }

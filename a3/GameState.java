@@ -67,6 +67,9 @@ public class GameState {
 	}
 	
 	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward) {
+		if (!(ghostAvatars.containsKey(ghostID))) {
+			return;
+		}
 		ghostAvatars.get(ghostID).setPos(ghostPosition);
 		ghostAvatars.get(ghostID).setRot(ghostRotation);
 		ghostAvatars.get(ghostID).setVelocityForward(vForward);
@@ -87,5 +90,9 @@ public class GameState {
 
 	public void setElapsedRaceTime(long elapsedRaceTime) {
 		this.elapsedRaceTime = elapsedRaceTime;
+	}
+
+	public void shouldRemoveGhostAvatar(UUID ghostID) {
+		ghostAvatars.get(ghostID).setShouldRemove(true);
 	}
 }
