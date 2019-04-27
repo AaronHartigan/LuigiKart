@@ -187,6 +187,7 @@ public class MyGame extends VariableFrameRateGame {
 		SceneNode bananaN = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(bananaE.getName() + "Node");
 		bananaN.attachObject(bananaE);
 		bananaN.scale(0.01f, 0.01f, 0.01f);
+		//bananaN.translate(Vector3f.createFrom(-36.376953125f, 3f, -67.3828125f));
 		bananaN.translate(-1000000f, 0f, 0f);
 	}
 	

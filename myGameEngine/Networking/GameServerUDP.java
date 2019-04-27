@@ -197,7 +197,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			return;
 		}
 		else {
-			if (pb.getVForward() < 3f) {
+			if (pb.getVForward() < 10f) {
 				pb.setAccelerating(true);	
 			}
 			pb.setDesiredTurn(computeTurn(ga));
@@ -212,7 +212,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 		float sign =
 			(nextWaypoint.x() - playerLine.x()) * (playerLine.w() - playerLine.y())
 			-
-			(nextWaypoint.y() - playerLine.y()) * (playerLine.z() - playerLine.x())
+			(nextWaypoint.z() - playerLine.y()) * (playerLine.z() - playerLine.x())
 		;
 		
 		return (sign > 0) ? 1f : -1f;
