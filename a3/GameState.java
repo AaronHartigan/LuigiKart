@@ -66,14 +66,14 @@ public class GameState {
 		ghostAvatars.put(ghostID, new GhostAvatar(ghostID));
 	}
 	
-	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward) {
+	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward, long time) {
 		if (!(ghostAvatars.containsKey(ghostID))) {
 			return;
 		}
 		ghostAvatars.get(ghostID).setPos(ghostPosition);
 		ghostAvatars.get(ghostID).setRot(ghostRotation);
 		ghostAvatars.get(ghostID).setVelocityForward(vForward);
-		ghostAvatars.get(ghostID).setLastUpdateTime(System.currentTimeMillis());
+		ghostAvatars.get(ghostID).setLastUpdateTime(time);
 	}
 	
 	public void removeGhostAvatar(UUID ghostID) {

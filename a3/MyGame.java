@@ -85,6 +85,7 @@ public class MyGame extends VariableFrameRateGame {
 	private final boolean SHOW_PACKET_MESSAGES = false;
 	private NodeOrbitController cameraController = null; 
 	private PhysicsBody physicsBody;
+	private long frametime;
 
 	public static synchronized String createID() {
 	    return String.valueOf(particleID++);
@@ -237,7 +238,7 @@ public class MyGame extends VariableFrameRateGame {
 		float elapsTime = engine.getElapsedTimeMillis();
 		// System.out.println(Math.round(1000 / elapsTime));
 		processNetworking(elapsTime);
-		handleInterpolation(elapsTime);
+		frametime = System.currentTimeMillis();
 		physicsBody.resetInputs();
 		im.update(elapsTime);
 		physicsBody.updatePhysics(elapsTime);
@@ -265,17 +266,6 @@ public class MyGame extends VariableFrameRateGame {
 		updateItemBoxesRotation();
 		// PRINT PLAYER POSITION
 		// System.out.println(playerNode.getWorldPosition());
-	}
-
-	private void handleInterpolation(float elapsTime) {
-		for (HashMap.Entry<UUID, GhostAvatar> entry : gameState.getGhostAvatars().entrySet()) {
-			UUID id = entry.getKey();
-			
-			SceneNode ghostAvatarN = getEngine().getSceneManager().getSceneNode(id.toString());
-			GhostAvatar ga = entry.getValue();
-			long time = System.currentTimeMillis() - ga.getLastUpdateTime();
-			ghostAvatarN.moveForward(time * ga.getVelocityForward());
-		}
 	}
 
 	public void updateHUD(Engine engine, float elapsTime) {
@@ -643,7 +633,7 @@ public class MyGame extends VariableFrameRateGame {
 		}
 	}
 	
-	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward) {
+	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward, long time) {
 		try {
 			SceneManager sm = getEngine().getSceneManager();
 			if (!sm.hasSceneNode(ghostID.toString())) {
@@ -651,7 +641,7 @@ public class MyGame extends VariableFrameRateGame {
 				createGhostAvatar(ghostID, ghostPosition);
 				return;
 			}
-			gameState.updateGhostAvatar(ghostID, ghostPosition, ghostRotation, vForward);
+			gameState.updateGhostAvatar(ghostID, ghostPosition, ghostRotation, vForward, time);
 		}
 		catch (RuntimeException e) {
 			e.printStackTrace();
@@ -671,6 +661,21 @@ public class MyGame extends VariableFrameRateGame {
 			SceneNode itemN = sm.getSceneNode(entry.getKey().toString());
 			itemN.setLocalPosition(entry.getValue().getPos());
 			itemN.setLocalRotation(entry.getValue().getRot());
+		}
+		handleInterpolation();
+	}
+	
+
+	private void handleInterpolation() {
+		for (HashMap.Entry<UUID, GhostAvatar> entry : gameState.getGhostAvatars().entrySet()) {
+			UUID id = entry.getKey();
+			
+			SceneNode ghostAvatarN = getEngine().getSceneManager().getSceneNode(id.toString());
+			GhostAvatar ga = entry.getValue();
+			long time = frametime - ga.getLastUpdateTime();
+			if (time > 0) {
+				ghostAvatarN.moveForward(((float) time / 1000) * ga.getVelocityForward());
+			}
 		}
 	}
 	

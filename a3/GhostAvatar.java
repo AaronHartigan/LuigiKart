@@ -17,6 +17,7 @@ public class GhostAvatar {
 	private boolean isNPC = false;
 	private PhysicsBody physicsBody = null;
 	private long lastUpdateTime = 0;
+	private int waypoint = -1;
 
 	public GhostAvatar(UUID id) {
 		this.setId(id);
@@ -100,5 +101,13 @@ public class GhostAvatar {
 
 	public void setLastUpdateTime(long lastUpdateTime) {
 		this.lastUpdateTime = lastUpdateTime;
+	}
+
+	public int getWaypoint() {
+		return waypoint;
+	}
+
+	public void setWaypoint(int waypoint) {
+		this.waypoint = waypoint;
 	}
 }

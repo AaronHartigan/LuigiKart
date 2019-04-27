@@ -68,7 +68,7 @@ public class ProtocolClient extends GameConnectionClient {
 				// format: update, remoteId, x,y,z, rot
 				UUID ghostID = UUID.fromString(messageTokens[1]);
 				if (ghostID.equals(id)) {
-					// continue;
+					continue;
 					// SHOW PLAYER GHOST
 				}
 				long time = Long.parseLong(messageTokens[2]);
@@ -88,7 +88,7 @@ public class ProtocolClient extends GameConnectionClient {
 				}
 				Matrix3 ghostRotation = Matrix3f.createFrom(floats);
 				float vForward = Float.parseFloat(messageTokens[15]);
-				game.updateGhostAvatar(ghostID, ghostPosition, ghostRotation, vForward);
+				game.updateGhostAvatar(ghostID, ghostPosition, ghostRotation, vForward, time);
 			}
 			else if(messageTokens[0].compareTo("uIB") == 0) {
 				// Update ItemBox

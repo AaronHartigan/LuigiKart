@@ -2,11 +2,16 @@ package a3;
 
 import java.util.UUID;
 
+import ray.rml.Vector2;
+import ray.rml.Vector2f;
 import ray.rml.Vector3;
 import ray.rml.Vector3f;
+import ray.rml.Vector4;
+import ray.rml.Vector4f;
 
 public class Track1 {
 	private int ID = 1;
+	public static int NUM_WAYPOINTS = 24;
 	private Vector3[] itemBoxes = new Vector3[] {
 		Vector3f.createFrom(9.78f, 1f, -14.77f),
 		Vector3f.createFrom(8.38f, 1f, -13.19f),
@@ -37,6 +42,87 @@ public class Track1 {
 		Vector3f.createFrom(-44.60f, 1f, -91.69f),
 		Vector3f.createFrom(-47.04f, 1f, -92.50f),
 	};
+	
+	private static Vector3[] waypoints = new Vector3[] {
+		Vector3f.createFrom(-36.376953125f, 1f, -67.3828125f),
+		Vector3f.createFrom(-25.87890625f, 1f, -49.8046875f),
+		Vector3f.createFrom(-17.822265625f, 1f, -33.935546875f),
+		Vector3f.createFrom(-2.685546875f, 1f, -19.53125f),
+		Vector3f.createFrom(27.099609375f, 1f, 5.126953125f),
+		Vector3f.createFrom(42.48046875f, 1f, 29.78515625f),
+		Vector3f.createFrom(41.259765625f, 1f, 40.771484375f),
+		Vector3f.createFrom(30.2734375f, 1f, 55.419921875f),
+		Vector3f.createFrom(12.6953125f, 1f, 68.84765625f),
+		Vector3f.createFrom(9.765625f, 1f, 85.205078125f),
+		Vector3f.createFrom(37.59765625f, 1f, 101.318359375f),
+		Vector3f.createFrom(61.5234375f, 1f, 91.064453125f),
+		Vector3f.createFrom(52.490234375f, 1f, 42.48046875f),
+		Vector3f.createFrom(40.0390625f, 1f, 19.287109375f),
+		Vector3f.createFrom(-2.197265625f, 1f, -20.751953125f),
+		Vector3f.createFrom(-18.310546875f, 1f, -40.283203125f),
+		Vector3f.createFrom(-24.658203125f, 1f, -62.5f),
+		Vector3f.createFrom(-19.04296875f, 1f, -75.439453125f),
+		Vector3f.createFrom(-10.25390625f, 1f, -87.158203125f),
+		Vector3f.createFrom(-10.25390625f, 1f, -100.830078125f),
+		Vector3f.createFrom(-21.97265625f, 1f, -107.421875f),
+		Vector3f.createFrom(-33.447265625f, 1f, -105.712890625f),
+		Vector3f.createFrom(-42.236328125f, 1f, -96.435546875f),
+		Vector3f.createFrom(-41.259765625f, 1f, -82.51953125f),
+	};
+	
+	private static Vector2[] pointInWaypoint = new Vector2[] {
+		Vector2f.createFrom(-36.376953125f, -68.603515625f),
+		Vector2f.createFrom(-25.87890625f, -51.025390625f),
+		Vector2f.createFrom(-17.822265625f, -35.15625f),
+		Vector2f.createFrom(-2.685546875f, -20.751953125f),
+		Vector2f.createFrom(27.099609375f, 3.90625f),
+		Vector2f.createFrom(42.48046875f, 28.564453125f),
+		Vector2f.createFrom(41.259765625f, 39.55078125f),
+		Vector2f.createFrom(30.2734375f, 54.19921875f),
+		Vector2f.createFrom(12.6953125f, 67.626953125f),
+		Vector2f.createFrom(10.986328125f, 85.205078125f),
+		Vector2f.createFrom(38.818359375f, 101.318359375f),
+		Vector2f.createFrom(61.5234375f, 92.28515625f),
+		Vector2f.createFrom(52.490234375f, 43.701171875f),
+		Vector2f.createFrom(40.0390625f, 20.5078125f),
+		Vector2f.createFrom(-2.197265625f, -19.53125f),
+		Vector2f.createFrom(-18.310546875f, -39.0625f),
+		Vector2f.createFrom(-24.658203125f, -61.279296875f),
+		Vector2f.createFrom(-19.04296875f, -74.21875f),
+		Vector2f.createFrom(-10.25390625f, -85.9375f),
+		Vector2f.createFrom(-10.25390625f, -99.609375f),
+		Vector2f.createFrom(-23.193359375f, -107.421875f),
+		Vector2f.createFrom(-34.66796875f, -105.712890625f),
+		Vector2f.createFrom(-43.45703125f, -96.435546875f),
+		Vector2f.createFrom(-41.259765625f, -83.740234375f),
+	};
+	
+	private static Vector4[] waypointsLines = new Vector4[] {
+		Vector4f.createFrom(-36.376953125f, -67.3828125f, -36.29345211344588f, -67.61222964374656f),
+		Vector4f.createFrom(-25.87890625f, -49.8046875f, -25.7568359375f, -50.01611948334582f),
+		Vector4f.createFrom(-17.822265625f, -33.935546875f, -17.7001953125f, -34.14697885834582f),
+		Vector4f.createFrom(-2.685546875f, -19.53125f, -2.528616306228855f, -19.718272569120842f),
+		Vector4f.createFrom(27.099609375f, 5.126953125f, 27.142003949625703f, 4.88652154467475f),
+		Vector4f.createFrom(42.48046875f, 29.78515625f, 42.48046875f, 29.541015625f),
+		Vector4f.createFrom(41.259765625f, 40.771484375f, 41.1376953125f, 40.560052391654196f),
+		Vector4f.createFrom(30.2734375f, 55.419921875f, 30.086414930879158f, 55.262991306228855f),
+		Vector4f.createFrom(12.6953125f, 68.84765625f, 12.652917925374297f, 68.60722466967476f),
+		Vector4f.createFrom(9.765625f, 85.205078125f, 9.977056983345804f, 85.0830078125f),
+		Vector4f.createFrom(37.59765625f, 101.318359375f, 37.809088233345804f, 101.4404296875f),
+		Vector4f.createFrom(61.5234375f, 91.064453125f, 61.606938511554105f, 91.29387026874656f),
+		Vector4f.createFrom(52.490234375f, 42.48046875f, 52.3681640625f, 42.691900733345804f),
+		Vector4f.createFrom(40.0390625f, 19.287109375f, 39.9169921875f, 19.498541358345804f),
+		Vector4f.createFrom(-2.197265625f, -20.751953125f, -2.2807666365541337f, -20.522535981253412f),
+		Vector4f.createFrom(-18.310546875f, -40.283203125f, -18.352941449625717f, -40.042771544674764f),
+		Vector4f.createFrom(-24.658203125f, -62.5f, -24.658203125f, -62.255859375f),
+		Vector4f.createFrom(-19.04296875f, -75.439453125f, -18.95946773844588f, -75.21003598125344f),
+		Vector4f.createFrom(-10.25390625f, -87.158203125f, -10.096975681228855f, -86.97118055587916f),
+		Vector4f.createFrom(-10.25390625f, -100.830078125f, -10.211511675374283f, -100.58964654467476f),
+		Vector4f.createFrom(-21.97265625f, -107.421875f, -22.18408823334582f, -107.2998046875f),
+		Vector4f.createFrom(-33.447265625f, -105.712890625f, -33.69140625f, -105.712890625f),
+		Vector4f.createFrom(-42.236328125f, -96.435546875f, -42.42335069412084f, -96.59247744377114f),
+		Vector4f.createFrom(-41.259765625f, -82.51953125f, -41.30216019962572f, -82.75996283032524f),
+	};
 
 	public Vector3[] getItemBoxes() {
 		return itemBoxes;
@@ -44,6 +130,18 @@ public class Track1 {
 	
 	public static Vector3 getPosition(int position) {
 		return startingPositions[position - 1];
+	}
+	
+	public static Vector3 getWaypoint(int i) {
+		return waypoints[i];
+	}
+	
+	public static Vector2 getPointInWaypoint(int i) {
+		return pointInWaypoint[i];
+	}
+	
+	public static Vector4 getWaypointLine(int i) {
+		return waypointsLines[i];
 	}
 	
 	public void initTrack(GameState gs) {

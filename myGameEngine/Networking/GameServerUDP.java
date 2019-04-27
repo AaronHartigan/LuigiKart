@@ -19,8 +19,12 @@ import a3.Track1;
 import ray.networking.server.GameConnectionServer;
 import ray.networking.server.IClientInfo;
 import ray.rml.Matrix3f;
+import ray.rml.Vector2;
+import ray.rml.Vector2f;
 import ray.rml.Vector3;
 import ray.rml.Vector3f;
+import ray.rml.Vector4;
+import ray.rml.Vector4f;
 
 public class GameServerUDP extends GameConnectionServer<UUID> {
 	private GameState gameState = null;
@@ -87,7 +91,8 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 				clientID,
 				Vector3f.createFrom(pos),
 				Matrix3f.createFrom(rot),
-				vForward
+				vForward,
+				0
 			);
 		}
 		else if (messageTokens[0].compareTo("bye") == 0) {
@@ -155,26 +160,64 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			}
 		}
 	}
-	
 
 	private void updateNPC(GhostAvatar ga, long elapsedTime) {
 		PhysicsBody physicsBody = ga.getPhysicsBody();
-		setInputs(physicsBody);
+		setInputs(physicsBody, ga);
 		physicsBody.updatePhysics(elapsedTime);
 		ga.setPos(physicsBody.getPosition());
 		ga.setRot(physicsBody.getDirection().mult(physicsBody.getRotation().mult(physicsBody.getSpinRotation())));
 		ga.setVelocityForward(physicsBody.getVForward());
+		int newWaypoint = determineWaypoint(ga);
+		// System.out.println("Waypoint: " + newWaypoint);
+		ga.setWaypoint(newWaypoint);
 	}
 
-	private void setInputs(PhysicsBody pb) {
+	private int determineWaypoint(GhostAvatar ga) {
+		int nextWaypoint = (ga.getWaypoint() + 1) % Track1.NUM_WAYPOINTS;
+		Vector4 nextWaypointLine = Track1.getWaypointLine(nextWaypoint);
+		Vector3 pos = ga.getPos();
+		boolean sign = getSign(Vector2f.createFrom(pos.x(), pos.z()), nextWaypointLine);
+		return (sign == getSign(Track1.getPointInWaypoint(nextWaypoint), nextWaypointLine))
+			? nextWaypoint : 
+			ga.getWaypoint();
+	}
+	
+	private boolean getSign(Vector2 a, Vector4 b) {
+		return (
+			(a.x() - b.x()) * (b.w() - b.y())
+			-
+			(a.y() - b.y()) * (b.z() - b.x())
+		) < 0;
+	}
+
+	private void setInputs(PhysicsBody pb, GhostAvatar ga) {
+		pb.resetInputs();
 		if (isRacingInputDisabled(pb)) {
-			pb.resetInputs();
+			return;
 		}
 		else {
-			pb.setAccelerating(true);
+			if (pb.getVForward() < 3f) {
+				pb.setAccelerating(true);	
+			}
+			pb.setDesiredTurn(computeTurn(ga));
 		}
 	}
 	
+	private float computeTurn(GhostAvatar ga) {
+		Vector3 nextWaypoint = Track1.getWaypoint((ga.getWaypoint() + 1) % Track1.NUM_WAYPOINTS);
+		Vector3 pos = ga.getPos();
+		Vector3 heading = pos.add(ga.getRot().column(2));
+		Vector4 playerLine = Vector4f.createFrom(pos.x(), pos.z(), heading.x(), heading.z());
+		float sign =
+			(nextWaypoint.x() - playerLine.x()) * (playerLine.w() - playerLine.y())
+			-
+			(nextWaypoint.y() - playerLine.y()) * (playerLine.z() - playerLine.x())
+		;
+		
+		return (sign > 0) ? 1f : -1f;
+	}
+
 	private boolean isRacingInputDisabled(PhysicsBody pb) {
 		if (gameState.getElapsedRaceTime() < 0) {
 			return true;
