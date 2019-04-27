@@ -15,6 +15,8 @@ public class GhostAvatar {
 	private Matrix3 rot = Matrix3f.createIdentityMatrix();
 	private boolean shouldRemove = false;
 	private boolean isNPC = false;
+	private PhysicsBody physicsBody = null;
+	private long lastUpdateTime = 0;
 
 	public GhostAvatar(UUID id) {
 		this.setId(id);
@@ -82,5 +84,21 @@ public class GhostAvatar {
 
 	public void setNPC(boolean isNPC) {
 		this.isNPC = isNPC;
+	}
+
+	public PhysicsBody getPhysicsBody() {
+		return physicsBody;
+	}
+
+	public void setPhysicsBody(PhysicsBody physicsBody) {
+		this.physicsBody = physicsBody;
+	}
+
+	public long getLastUpdateTime() {
+		return lastUpdateTime;
+	}
+
+	public void setLastUpdateTime(long lastUpdateTime) {
+		this.lastUpdateTime = lastUpdateTime;
 	}
 }

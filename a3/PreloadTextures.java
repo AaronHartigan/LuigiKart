@@ -58,6 +58,32 @@ public class PreloadTextures {
 			e.printStackTrace();
 		}
 	}
+	
+	public Texture getTexture(int num) {
+		switch(num) {
+		case 0:
+			return n0;
+		case 1:
+			return n1;
+		case 2:
+			return n2;
+		case 3:
+			return n3;
+		case 4:
+			return n4;
+		case 5:
+			return n5;
+		case 6:
+			return n6;
+		case 7:
+			return n7;
+		case 8:
+			return n8;
+		case 9:
+			return n9;
+		}
+		return null;
+	}
 
 	public Texture getTexture(TEXTURE tex) {
 		switch(tex) {

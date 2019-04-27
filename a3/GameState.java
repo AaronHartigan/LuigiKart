@@ -73,6 +73,7 @@ public class GameState {
 		ghostAvatars.get(ghostID).setPos(ghostPosition);
 		ghostAvatars.get(ghostID).setRot(ghostRotation);
 		ghostAvatars.get(ghostID).setVelocityForward(vForward);
+		ghostAvatars.get(ghostID).setLastUpdateTime(System.currentTimeMillis());
 	}
 	
 	public void removeGhostAvatar(UUID ghostID) {

@@ -13,7 +13,7 @@ public class StartDeccelerationAction extends AbstractInputAction {
 	@Override
 	public void performAction(float time, Event evt) {
 		if (!g.isRacingInputDisabled()) {
-			g.setDeccelerating(true);
+			g.getPhysicsBody().setDeccelerating(true);
 		}
 	}
 

@@ -76,32 +76,6 @@ public class MyGame extends VariableFrameRateGame {
 	private ProtocolClient clientProtocol;
 	private Item item = null;
 	private ClientState clientState = new ClientState();
-	private boolean isOnGround = true;
-	private float gravity = -10f;
-	private boolean isAccelerating = false;
-	private boolean isDeccelerating = false;
-	private boolean isBraking = false;
-	private boolean isOnSpeedBoost = false;
-	private float accelerationRate = 20f;
-	private float deccelerationRate = -15f;
-	private float TURN_RATE = 50f;
-	private float spinDirection = 0f;
-	private float spinoutTimer = 0f;
-	private float SPINOUT_DURATION = 1500f;
-	private float speedBoostTimer = 0f;
-	private float SPEED_BOOST_DURATION = 1000f;
-	private float DRIFTING_TURN_RATE = 75f;
-	private boolean isDrifting = false;
-	private float driftingDirection = 0f;
-	private float MAX_BASE_SPEED = 20f;
-	private float roadFriction = 10f;
-	private float desiredTurn = 0f;
-	private float desiredTurnRollingAverage = 0f;
-	private float actualTurn = 0f;
-	private float vForward = 0f; // forward velicty
-	private float vUp = 0f; // upward velocity
-	private float currentPitch = 0f;
-	private float currentRoll = 0f;
 	private GameState gameState = new GameState();
 	private static long particleID = 0;
 	private PreloadTextures textures = null;
@@ -110,6 +84,7 @@ public class MyGame extends VariableFrameRateGame {
 	private int currentZone = 3;
 	private final boolean SHOW_PACKET_MESSAGES = false;
 	private NodeOrbitController cameraController = null; 
+	private PhysicsBody physicsBody;
 
 	public static synchronized String createID() {
 	    return String.valueOf(particleID++);
@@ -190,6 +165,7 @@ public class MyGame extends VariableFrameRateGame {
 		setupHUD();
 		createGroundPlane(sm);
 		createDolphinWithCamera(sm);
+		physicsBody = new PhysicsBody(playerNode.getWorldPosition(), playerNode.getWorldRotation());
 		initMeshes();
 
 		setupInputs();
@@ -215,6 +191,7 @@ public class MyGame extends VariableFrameRateGame {
 	
 	private void setupNetworking() {
 		try {
+			System.out.println("Starting Protocol Client");
 			clientProtocol = new ProtocolClient(
 				InetAddress.getByName(serverAddr),
 				serverPort,
@@ -222,10 +199,7 @@ public class MyGame extends VariableFrameRateGame {
 				this
 			);
 		}
-		catch (UnknownHostException e) {
-			e.printStackTrace();
-		}
-		catch (IOException e) {
+		catch (Exception e) {
 			e.printStackTrace();
 		}
 		
@@ -261,15 +235,18 @@ public class MyGame extends VariableFrameRateGame {
 	@Override
 	protected void update(Engine engine) {
 		float elapsTime = engine.getElapsedTimeMillis();
+		// System.out.println(Math.round(1000 / elapsTime));
 		processNetworking(elapsTime);
-		setAccelerating(false);
-		setDeccelerating(false);
-		setDrifting(false);
-		setDesiredTurn(0f);
+		handleInterpolation(elapsTime);
+		physicsBody.resetInputs();
 		im.update(elapsTime);
-		updateHUD(engine, elapsTime);
-		updatePlayerPhysics(elapsTime);
+		physicsBody.updatePhysics(elapsTime);
+		playerNode.setLocalPosition(physicsBody.getPosition());
+		playerNode.setLocalRotation(physicsBody.getDirection());
+		playerAvatar.setLocalRotation(physicsBody.getRotation());
+		playerAvatarRotator.setLocalRotation(physicsBody.getSpinRotation());
 		updateLapInfo();
+		updateHUD(engine, elapsTime);
 		long modifiedTime = script.lastModified();
 		if (modifiedTime > lastScriptModifiedTime) {
 			lastScriptModifiedTime = modifiedTime;
@@ -280,7 +257,7 @@ public class MyGame extends VariableFrameRateGame {
 			clientProtocol.updatePlayerInformation(
 				this.getPlayerPosition(),
 				this.getPlayerRotation(),
-				vForward
+				physicsBody.getVForward()
 			);
 		}
 		updatePlayerItem();
@@ -288,6 +265,17 @@ public class MyGame extends VariableFrameRateGame {
 		updateItemBoxesRotation();
 		// PRINT PLAYER POSITION
 		// System.out.println(playerNode.getWorldPosition());
+	}
+
+	private void handleInterpolation(float elapsTime) {
+		for (HashMap.Entry<UUID, GhostAvatar> entry : gameState.getGhostAvatars().entrySet()) {
+			UUID id = entry.getKey();
+			
+			SceneNode ghostAvatarN = getEngine().getSceneManager().getSceneNode(id.toString());
+			GhostAvatar ga = entry.getValue();
+			long time = System.currentTimeMillis() - ga.getLastUpdateTime();
+			ghostAvatarN.moveForward(time * ga.getVelocityForward());
+		}
 	}
 
 	public void updateHUD(Engine engine, float elapsTime) {
@@ -306,193 +294,12 @@ public class MyGame extends VariableFrameRateGame {
 
 		int bottomRightX = rs.getCanvas().getWidth() - 100;
 		int bottomRightY = 15;
-		stringList.get(2).setAll("" + Math.round((vForward + getGravityForce()) * 3) + " MPH", bottomRightX, bottomRightY);
+		stringList.get(2).setAll("" + Math.round((physicsBody.getVForward() + physicsBody.getGravityForce()) * 3) + " MPH", bottomRightX, bottomRightY);
 	}
 
 	private void processNetworking(float elapsTime) {
 		if (clientProtocol != null) {
 			clientProtocol.processPackets();
-		}
-	}
-	
-	protected float getGroundHeight(float x, float z) {
-		Tessellation plane = getEngine().getSceneManager().getTessellation("plane");
-		return plane.getWorldHeight(x, z);
-	}
-
-	protected boolean getIsSpeedBoost(float x, float z, Vector3 facing, float scale) {
-		Tessellation plane = getEngine().getSceneManager().getTessellation("plane");
-		return (
-			plane.getIsSpeedBoost(x + facing.x() * scale, z + facing.z() * scale) ||
-			plane.getIsSpeedBoost(x, z) ||
-			plane.getIsSpeedBoost(x - facing.x() * scale, z - facing.z() * scale)
-		);
-	}
-
-	
-	protected void updatePlayerPhysics(float elapsedMS) {
-		updateTimers(elapsedMS);
-		float elapsedSec = elapsedMS / 1000;
-		Vector3 lp = playerNode.getWorldPosition();
-		Vector3 fv = playerAvatar.getWorldForwardAxis();
-		
-		// Handle speed boost
-		setOnSpeedBoost(getIsSpeedBoost(lp.x(), lp.z(), fv, 1.5f));
-		
-		// Handle collision spinning
-		if (isSpinning()) {
-			playerAvatarRotator.setLocalRotation(Matrix3f.createIdentityMatrix());
-			playerAvatarRotator.yaw(Degreef.createFrom(getSpinDirection()));
-		}
-		else {
-			playerAvatarRotator.setLocalRotation(Matrix3f.createIdentityMatrix());
-		}
-		
-		// Handle turning
-		if (!isRacingInputDisabled()) {
-			desiredTurnRollingAverage = desiredTurnRollingAverage * 0.9f + getDesiredTurn() * 0.1f;
-			float dTurn = desiredTurnRollingAverage - actualTurn;
-			actualTurn += dTurn / 6;
-			float turnDegrees = actualTurn * elapsedSec * getTurnRate();
-			// Reduce turn rate if car is moving slowly
-			if (Math.abs(vForward) <= 1f) {
-				if (Math.abs(vForward) <= 0.05f) {
-					turnDegrees = 0;
-				}
-				else {
-					turnDegrees *= ((Math.abs(vForward) * 16 / 19) + 3/19);	
-				}
-			}
-			if (isOnGround) {
-				playerNode.yaw(Degreef.createFrom(turnDegrees));
-			}
-		}
-		else {
-			desiredTurnRollingAverage = 0f;
-		}
-
-		// Handle forward movement
-		if (speedBoostTimer > 0f) {
-			vForward = getMaxSpeed();
-		}
-		else if (isOnGround) {
-			// adjust forward velocity
-			if (isAccelerating()) {
-				vForward += accelerationRate * elapsedSec;
-			}
-			if (isDeccelerating()) {
-				vForward += deccelerationRate * elapsedSec;
-			}
-			if (
-				(!isAccelerating() && !isDeccelerating()
-				|| isAccelerating() && isDeccelerating())
-				&& Math.abs(vForward) < 0.05f
-			) {
-				// Clamp to prevent small movement when player should be stationary
-				vForward = 0f;
-			}
-			else {
-				float frictionDirection = vForward > 0f ? -1f : 1f;
-				vForward += roadFriction * frictionDirection * elapsedSec;
-				vForward = Math.max(vForward, getMaxReverseSpeed());
-				vForward = Math.min(vForward, getMaxSpeed());
-			}
-		}
-		// apply forward velocity
-		fv = fv.mult(vForward * elapsedSec + getGravityForce() * elapsedSec);
-		
-		// Check if player is running into a wall by checking the angle of the avatar
-		float currentHeight = lp.y();
-		float tCAR_LENGTH = vForward > 0 ? 0.5f : -0.5f;
-		playerNode.moveForward(tCAR_LENGTH);
-		Vector3 newLP = playerNode.getWorldPosition();
-		playerNode.moveBackward(tCAR_LENGTH);
-		float heightDifferential = (getGroundHeight(newLP.x(), newLP.z())) - currentHeight;
-		float tpitchAngle = (float) Math.toDegrees(Math.atan(heightDifferential / Math.abs(tCAR_LENGTH)));
-		if (tpitchAngle > 45f) {
-			// Calculate angle and set new angle and velocity
-			vForward = 0f;
-		}
-		else {
-			// Move forward
-			playerNode.setLocalPosition(lp.add(fv));
-		}
-		
-		// Handle new location's height
-		lp = playerNode.getWorldPosition();
-		float groundHeight = getGroundHeight(lp.x(), lp.z());
-		currentHeight = lp.y();
-		// If avatar was already on the ground, and the ground is near, "snap" the avatar to the ground
-		if (isOnGround && (currentHeight - groundHeight) < 0.2f) {
-			currentHeight = groundHeight;
-		}
-		// If falling, update currentHeight with gravityd
-		if (currentHeight > groundHeight) {
-			isOnGround = false;
-			vUp += gravity * elapsedSec;
-			currentHeight += ((gravity * elapsedSec * elapsedSec / 2) + vUp * elapsedSec);
-		}
-		// Must check if gravity has put us below ground (or going uphill)
-		if (currentHeight < groundHeight) {
-			// if we were falling with enough speed, bounce
-			if (!isOnGround && vUp < -5f) {
-				vUp = Math.abs(vUp) / 8;
-			}
-			// If not enough downward velocity, just be on the ground
-			else {
-				vUp = 0;
-				isOnGround = true;
-			}
-			currentHeight = groundHeight;
-		}
-		playerNode.setLocalPosition(lp.x(), currentHeight, lp.z());
-		
-		// Change the avatar's angle
-		if (isOnGround) {
-			Vector3 heading;
-			float heightChange;
-			playerAvatar.setLocalRotation(Matrix3f.createIdentityMatrix());
-			// Calculate pitch
-			float CAR_LENGTH = 0.5f;
-			playerNode.moveForward(CAR_LENGTH);
-			heading = playerNode.getLocalPosition();
-			playerNode.moveBackward(CAR_LENGTH);
-			heightChange = (getGroundHeight(heading.x(), heading.z())) - currentHeight;
-			if (heightChange < -1f) {
-				// if falling, don't correct pitch much
-				float pitchAngle = (float) Math.toDegrees(Math.atan(heightChange / CAR_LENGTH));
-				float newPitch = (pitchAngle - currentPitch) * elapsedSec / 3 + currentPitch;
-				playerAvatar.pitch(Degreef.createFrom(-newPitch));
-				currentPitch = newPitch;
-			}
-			else {
-				float pitchAngle = (float) Math.toDegrees(Math.atan(heightChange / CAR_LENGTH));
-				float newPitch = (pitchAngle - currentPitch) * elapsedSec * 3 + currentPitch;
-				playerAvatar.pitch(Degreef.createFrom(-newPitch));
-				currentPitch = newPitch;
-			}
-			
-			// Calculate roll
-			float CAR_WIDTH = 0.25f;
-			playerNode.moveRight(CAR_WIDTH);
-			heading = playerNode.getLocalPosition();
-			playerNode.moveLeft(CAR_WIDTH);
-			heightChange = (getGroundHeight(heading.x(), heading.z())) - currentHeight;
-			float rollAngle = (float) Math.toDegrees(Math.atan(heightChange / CAR_WIDTH));
-			float newRoll = (rollAngle - currentRoll) * elapsedSec * 5 + currentRoll;
-			playerAvatar.roll(Degreef.createFrom(newRoll));
-			currentRoll = newRoll;
-		}
-		// If in air, straighten car out
-		else {
-			playerAvatar.setLocalRotation(Matrix3f.createIdentityMatrix());
-			float newPitch = -currentPitch * elapsedSec + currentPitch;
-			playerAvatar.pitch(Degreef.createFrom(-newPitch));
-			currentPitch = newPitch;
-			
-			float newRoll = -currentRoll * elapsedSec + currentRoll;
-			playerAvatar.roll(Degreef.createFrom(newRoll));
-			currentRoll = newRoll;
 		}
 	}
 
@@ -548,6 +355,8 @@ public class MyGame extends VariableFrameRateGame {
 
 		SceneNode skyN = sm.getRootSceneNode().createChildSceneNode("skyNode");
 		skyN.translate(-50f, 15f, -110f);
+		skyN.rotate(Degreef.createFrom(20f), Vector3f.createUnitVectorY());
+		skyN.rotate(Degreef.createFrom(15f), Vector3f.createUnitVectorX());
 		dolphinN.createChildSceneNode(dolphinN.getName() + "Camera");
 		setCameraToSky();
 	}
@@ -864,6 +673,20 @@ public class MyGame extends VariableFrameRateGame {
 			itemN.setLocalRotation(entry.getValue().getRot());
 		}
 	}
+	
+	protected float getGroundHeight(float x, float z) {
+		Tessellation plane = getEngine().getSceneManager().getTessellation("plane");
+		return plane.getWorldHeight(x, z);
+	}
+
+	protected boolean getIsSpeedBoost(float x, float z, Vector3 facing, float scale) {
+		Tessellation plane = getEngine().getSceneManager().getTessellation("plane");
+		return (
+			plane.getIsSpeedBoost(x + facing.x() * scale, z + facing.z() * scale) ||
+			plane.getIsSpeedBoost(x, z) ||
+			plane.getIsSpeedBoost(x - facing.x() * scale, z - facing.z() * scale)
+		);
+	}
 
 	public void createItemBox(UUID id, Vector3 pos) {
 		try {
@@ -1001,7 +824,7 @@ public class MyGame extends VariableFrameRateGame {
 	
 
 	public void handlePlayerHitItem(UUID itemID) {
-		handleCollision();
+		physicsBody.handleCollision();
 	}
 
 	public void removeItem(UUID itemID, Vector3 force) {
@@ -1040,133 +863,6 @@ public class MyGame extends VariableFrameRateGame {
         }
     }
 
-	public boolean isAccelerating() {
-		return isAccelerating;
-	}
-
-	public void setAccelerating(boolean isAccelerating) {
-		this.isAccelerating = isAccelerating;
-	}
-
-	public boolean isBraking() {
-		return isBraking;
-	}
-
-	public void setBraking(boolean isBraking) {
-		this.isBraking = isBraking;
-	}
-
-	public boolean isDeccelerating() {
-		return isDeccelerating;
-	}
-
-	public void setDeccelerating(boolean isDeccelerating) {
-		this.isDeccelerating = isDeccelerating;
-	}
-	
-	protected float getGravityForce() {
-		return (float) Math.sin(Math.toRadians(currentPitch)) * gravity;
-	}
-	
-	protected float getMaxSpeed() {
-		return (MAX_BASE_SPEED + getGravityForce()) * getMaxSpeedModifier();
-	}
-	
-	protected float getMaxReverseSpeed() {
-		return -getMaxSpeed() / 4;
-	}
-	
-	protected float getTurnRate() {
-		float direction = 1f;
-		if (vForward < 0) {
-			direction = -1f;
-		}
-		if (isDrifting()) {
-			return direction * DRIFTING_TURN_RATE;
-		}
-		return direction * TURN_RATE;
-	}
-
-	public float getDesiredTurn() {
-		return desiredTurn;
-	}
-
-	public void setDesiredTurn(float desiredTurn) {
-		this.desiredTurn = desiredTurn;
-	}
-
-	public float getActualTurn() {
-		return actualTurn;
-	}
-
-	public void setActualTurn(float actualTurn) {
-		this.actualTurn = actualTurn;
-	}
-	
-	public float getDriftingDirection() {
-		return driftingDirection;
-	}
-
-	public void setDriftingDirection(float driftingDirection) {
-		this.driftingDirection = driftingDirection;
-	}
-
-	public boolean isDrifting() {
-		return isDrifting;
-	}
-
-	public void setDrifting(boolean isDrifting) {
-		this.isDrifting = isDrifting;
-	}
-	
-	protected boolean isSpinning() {
-		return spinoutTimer > 0;
-	}
-
-    protected void handleCollision() {
-    	setSpinoutTimer(SPINOUT_DURATION);
-    }
-
-    private void setSpinoutTimer(float f) {
-		this.spinoutTimer = f;
-	}
-    
-    private float getSpinDirection() {
-    	return spinDirection;
-    }
-    
-    private void calculateSpinDirection() {
-    	float timer = spinoutTimer;
-    	if (spinoutTimer > 750) {
-    		timer -= 750;
-    	}
-    	setSpinDirection(timer * 360 / 750);
-    }
-    
-    private void setSpinDirection(float direction) {
-    	spinDirection = direction;
-    }
-
-	protected float getMaxSpeedModifier() {
-    	if (spinoutTimer <= 0f) {
-    		if (speedBoostTimer > 0f) {
-    			return 1.2f;
-    		}
-    		return 1f;
-    	}
-    	return ((spinoutTimer / SPINOUT_DURATION) * 0.3f ) + 0.4f;
-    }
-
-	public void updateTimers(float elapsedMS) {
-		setSpinoutTimer(Math.max(0, spinoutTimer - elapsedMS));
-		setSpeedBoostTimer(Math.max(0, speedBoostTimer - elapsedMS));
-		calculateSpinDirection();
-	}
-
-	private void setSpeedBoostTimer(float time) {
-		this.speedBoostTimer = time;
-	}
-
 	public void updateItem(UUID itemID, Vector3 itemPos, Matrix3 itemRot, int itemType) {
 		try {
 			SceneManager sm = getEngine().getSceneManager();
@@ -1180,17 +876,6 @@ public class MyGame extends VariableFrameRateGame {
 		catch (RuntimeException e) {
 			e.printStackTrace();
 		}
-	}
-
-	public boolean isOnSpeedBoost() {
-		return isOnSpeedBoost;
-	}
-
-	public void setOnSpeedBoost(boolean isOnSpeedBoost) {
-		if (isOnSpeedBoost && !isSpinning()) {
-			setSpeedBoostTimer(SPEED_BOOST_DURATION);
-		}
-		this.isOnSpeedBoost = isOnSpeedBoost;
 	}
 
 	public void itemBoxExplosion(Vector3 pos, Vector3 force) {
@@ -1264,16 +949,6 @@ public class MyGame extends VariableFrameRateGame {
 
 	public ClientState getClientState() {
 		return clientState;
-	}
-	
-	public boolean isRacingInputDisabled() {
-		if (isRacing() && gameState.getElapsedRaceTime() < 0) {
-			return true;
-		}
-		if (isRacing() && !isSpinning()) {
-			return false;
-		}
-		return true;
 	}
 	
 	public boolean isRacing() {
@@ -1351,10 +1026,32 @@ public class MyGame extends VariableFrameRateGame {
 
 	public void setStartingPosition(int position) {
 		Vector3 startingPos = Track1.getPosition(position);
-		playerNode.setLocalPosition(
+		startingPos = Vector3f.createFrom(
 			startingPos.x(),
 			getGroundHeight(startingPos.x(), startingPos.z()),
 			startingPos.z()
 		);
+		physicsBody.setPosition(startingPos);
+		playerNode.setLocalPosition(
+			startingPos
+		);
+	}
+	
+	public PhysicsBody getPhysicsBody() {
+		return physicsBody;
+	}
+	
+	public boolean isRacingInputDisabled() {
+		if (isRacing() && getGameState().getElapsedRaceTime() < 0) {
+			return true;
+		}
+		if (physicsBody.isSpinning()) {
+			return true;
+		}
+		return false;
+	}
+	
+	public Item getItem() {
+		return item;
 	}
 }

@@ -21,8 +21,10 @@ public class TimerGui {
 	private Entity countdown;
 	private Entity background;
 	private SceneNode countdownN;
+	private TextureState colon;
+	private TextureState minute1T, second1T, second0T, ms2T, ms1T, ms0T;
+	private TextureState tstate, countdownT;
 
-	private TextureState tstate;
 	private final float NUMBER_SCALE = 0.035f;
 	private final float STARTING_X = 0.4f;
 	private final float STARTING_Y = 0.8f;
@@ -59,26 +61,38 @@ public class TimerGui {
 			e.printStackTrace();
 		}
 		
+		minute1T = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+		second1T = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+		second0T = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+		ms2T = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+		ms1T = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+		ms0T = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+		colon = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+		countdownT = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+
+		minute1T.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N0));
+		second1T.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N0));
+		second0T.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N0));
+		ms2T.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N0));
+		ms1T.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N0));
+		ms0T.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N0));
+		colon.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.COLON));
+		countdownT.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N0));
+		
 		tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
 		tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.BACKGROUND));
 		background.setRenderState(tstate);
-		
-		tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N0));
 
-		minute1.setRenderState(tstate);
-		second0.setRenderState(tstate);
-		second1.setRenderState(tstate);
-		ms0.setRenderState(tstate);
-		ms1.setRenderState(tstate);
-		ms2.setRenderState(tstate);
-		countdown.setRenderState(tstate);
-		
-		tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.COLON));
+		minute1.setRenderState(minute1T);
+		second0.setRenderState(second0T);
+		second1.setRenderState(second1T);
+		ms0.setRenderState(ms0T);
+		ms1.setRenderState(ms1T);
+		ms2.setRenderState(ms2T);
+		countdown.setRenderState(countdownT);
 
-		colon0.setRenderState(tstate);
-		colon1.setRenderState(tstate);
+		colon0.setRenderState(colon);
+		colon1.setRenderState(colon);
 		
 		countdownN = g.getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(countdown.getName());
 		countdownN.scale(COUNTDOWN_SCALE, COUNTDOWN_SCALE, COUNTDOWN_SCALE);
@@ -135,96 +149,35 @@ public class TimerGui {
 		if (time < 0) {
 			time = 0;
 		}
-		int ms2T = time % 10;
-		int ms1T = (time / 10) % 10;
-		int ms0T = (time / 100) % 10;
+		int ms2Time = time % 10;
+		int ms1Time = (time / 10) % 10;
+		int ms0Time = (time / 100) % 10;
 		
 		int sec1T = (time / 1000) % 10;
 		int sec0T = ((time / 1000) % 60) / 10;
 		
 		int min1T = ((time / 1000) / 60) % 10;
-		final int COLON = 10;
 
 		// System.out.println("" + min0T + min1T + ":" + sec0T + sec1T + ":" + ms0T + ms1T + ms2T);
 		countdownN.detachAllObjects();
 		if (timeL < 0) {
 			countdownN.attachObject(countdown);
-			tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-			setTexture((int) Math.min(3, (Math.abs(timeL) / 1000) % 10 + 1));
-			countdown.setRenderState(tstate);
+			countdownT.setTexture(
+				g.getTextures().getTexture(
+					(int) Math.min(3, (Math.abs(timeL) / 1000) % 10 + 1)
+				)
+			);
 		}
-		
-		tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		setTexture(min1T);
-		minute1.setRenderState(tstate);
-		
-		tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		setTexture(COLON);
-		colon0.setRenderState(tstate);
-		
-		tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		setTexture(sec0T);
-		second0.setRenderState(tstate);
-		
-		tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		setTexture(sec1T);
-		second1.setRenderState(tstate);
-		
-		tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		setTexture(COLON);
-		colon1.setRenderState(tstate);
-		
-		tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		setTexture(ms0T);
-		ms0.setRenderState(tstate);
-		
-		tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		setTexture(ms1T);
-		ms1.setRenderState(tstate);
-		
-		tstate = (TextureState) g.getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		setTexture(ms2T);
-		ms2.setRenderState(tstate);
-	}
-	
-	private void setTexture(int num) {
-		switch (num) {
-		case 0:
-			tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N0));
-			break;
-		case 1:
-			tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N1));
-			break;
-		case 2:
-			tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N2));
-			break;
-		case 3:
-			tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N3));
-			break;
-		case 4:
-			tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N4));
-			break;
-		case 5:
-			tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N5));
-			break;
-		case 6:
-			tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N6));
-			break;
-		case 7:
-			tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N7));
-			break;
-		case 8:
-			tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N8));
-			break;
-		case 9:
-			tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.N9));
-			break;
-		case 10:
-			tstate.setTexture(g.getTextures().getTexture(PreloadTextures.TEXTURE.COLON));
-			break;
-		default: 
-			System.out.println("Error returning TextureState: " + num);
-			break;
-		}
+		minute1T.setTexture(g.getTextures().getTexture(min1T));
+
+		second0T.setTexture(g.getTextures().getTexture(sec0T));
+
+		second1T.setTexture(g.getTextures().getTexture(sec1T));
+
+		ms0T.setTexture(g.getTextures().getTexture(ms0Time));
+
+		ms1T.setTexture(g.getTextures().getTexture(ms1Time));
+
+		ms2T.setTexture(g.getTextures().getTexture(ms2Time));
 	}
 }
