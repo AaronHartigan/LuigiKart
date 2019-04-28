@@ -171,6 +171,12 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 		int newWaypoint = determineWaypoint(ga);
 		// System.out.println("Waypoint: " + newWaypoint);
 		ga.setWaypoint(newWaypoint);
+		if (ga.hasItem()) {
+			Item item = ga.getItem();
+			item.setRot(physicsBody.getDirection().mult(physicsBody.getRotation()));
+			item.setPos(physicsBody.getPosition());
+			item.setPos(item.getPos().add(item.getRot().column(2).mult(-1.1f)));
+		}
 	}
 
 	private int determineWaypoint(GhostAvatar ga) {
@@ -235,16 +241,17 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
     	long newTime = System.currentTimeMillis();
     	elapsedTime = newTime - gameTimer;
     	gameTimer = newTime;
-    	if (gameState.hasRaceStarted()) {
-        	gameState.setElapsedRaceTime(gameState.getElapsedRaceTime() + elapsedTime);
-        	try {
-    			String message = new String("raceTime," + gameState.getElapsedRaceTime());
-    			sendPacketToAll(message);
-    		}
-    		catch (IOException e) {
-    			e.printStackTrace();
-    		}
+    	if (!gameState.hasRaceStarted()) {
+    		return;
     	}
+    	gameState.setElapsedRaceTime(gameState.getElapsedRaceTime() + elapsedTime);
+    	try {
+			String message = new String("raceTime," + gameState.getElapsedRaceTime());
+			sendPacketToAll(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
     	checkCollisions();
     	updateItemBoxTimers();
     	try {
@@ -417,6 +424,10 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 					}
 					Item newItem = new Item(ItemType.getRandomItemType());
 					avatar.setItem(newItem);
+	        		gameState.getItems().put(newItem.getID(), newItem);
+	        		if (avatar.isNPC()) {
+	        			continue;
+	        		}
 	        		try {
 	        			message = new String(
 	        				"gotItem," +
@@ -428,7 +439,6 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	        		catch (IOException e) {
 	        			e.printStackTrace();
 	        		}
-	        		gameState.getItems().put(newItem.getID(), newItem);
 				}
 			}
 			
@@ -465,6 +475,9 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	        		}
 	        		catch (IOException e) {
 	        			e.printStackTrace();
+	        		}
+	        		if (avatar.isNPC()) {
+	        			avatar.getPhysicsBody().handleCollision();
 	        		}
 	        		itemsIter.remove();
 				}

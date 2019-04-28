@@ -311,7 +311,7 @@ public class PhysicsBody {
 		return spinoutTimer > 0;
 	}
 
-    protected void handleCollision() {
+    public void handleCollision() {
     	setSpinoutTimer(SPINOUT_DURATION);
     }
 
