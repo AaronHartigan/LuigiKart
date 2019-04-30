@@ -78,6 +78,9 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			UUID clientID = UUID.fromString(messageTokens[1]);
 			String[] pos = { messageTokens[2], messageTokens[3], messageTokens[4] };
 			gameState.createGhostAvatar(clientID, Vector3f.createFrom(pos));
+			gameState.getGhostAvatars().get(clientID).setPhysicsBody(
+				new PhysicsBody(Vector3f.createFrom(0f, 0f, 0f), Matrix3f.createIdentityMatrix())
+			);
 		}
 		else if (messageTokens[0].compareTo("update") == 0) {
 			UUID clientID = UUID.fromString(messageTokens[1]);
@@ -143,6 +146,13 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			int trackID = Integer.parseInt(messageTokens[2]);
 			setShouldInitRace(true);
 			sendStartRace(trackID);
+		}
+		else if (messageTokens[0].compareTo("completedRace") == 0) {
+			UUID clientID = UUID.fromString(messageTokens[1]);
+			GhostAvatar ga = gameState.getGhostAvatars().get(clientID);
+			ga.getPhysicsBody().setPosition(ga.getPos());
+			ga.getPhysicsBody().setRotation(ga.getRot());
+			ga.setNPC(true);
 		}
 	}
 

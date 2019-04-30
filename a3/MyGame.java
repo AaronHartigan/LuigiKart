@@ -247,7 +247,9 @@ public class MyGame extends VariableFrameRateGame {
 		frametime = System.currentTimeMillis();
 		physicsBody.resetInputs();
 		im.update(elapsTime);
-		if (gameState.getRaceState() != RaceState.LOBBY) {
+		if (gameState.getRaceState() != RaceState.LOBBY
+			&& gameState.getRaceState() != RaceState.FINISH
+		) {
 			physicsBody.updatePhysics(elapsTime);	
 		}
 		playerNode.setLocalPosition(physicsBody.getPosition());
@@ -263,7 +265,9 @@ public class MyGame extends VariableFrameRateGame {
 			lastScriptModifiedTime = modifiedTime;
 			updateScriptConstants();
 		}
-		if (gameState.getRaceState() == RaceState.RACING) {
+		if (gameState.getRaceState() == RaceState.RACING ||
+			gameState.getRaceState() == RaceState.COUNTDOWN
+		) {
 			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Update Information");
 			clientProtocol.updatePlayerInformation(
 				this.getPlayerPosition(),
@@ -1011,6 +1015,7 @@ public class MyGame extends VariableFrameRateGame {
 	protected void finishRace() {
 		gameState.setRaceState(RaceState.FINISH);
 		clientState.setRaceFinished(true);
+		clientProtocol.completedRace(clientState.getSelectedTrack());
 	}
 	
 	
@@ -1114,5 +1119,10 @@ public class MyGame extends VariableFrameRateGame {
 	public void joinTrack(int trackID) {
 		clientState.setJoinedTrack(trackID);
 		gameState.setRaceState(RaceState.COUNTDOWN);
+	}
+
+	public void updateAvatar(Vector3 ghostPosition, Matrix3 ghostRotation) {
+		physicsBody.setPosition(ghostPosition);
+		physicsBody.setRotation(ghostRotation);
 	}
 }

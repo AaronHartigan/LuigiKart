@@ -67,10 +67,6 @@ public class ProtocolClient extends GameConnectionClient {
 			else if(messageTokens[0].compareTo("update") == 0) { // etc…..
 				// format: update, remoteId, x,y,z, rot
 				UUID ghostID = UUID.fromString(messageTokens[1]);
-				if (ghostID.equals(id)) {
-					continue;
-					// SHOW PLAYER GHOST
-				}
 				long time = Long.parseLong(messageTokens[2]);
 				if (time < lastUpdateTime) {
 					System.out.println("Old message");
@@ -88,6 +84,12 @@ public class ProtocolClient extends GameConnectionClient {
 				}
 				Matrix3 ghostRotation = Matrix3f.createFrom(floats);
 				float vForward = Float.parseFloat(messageTokens[15]);
+				if (ghostID.equals(id)) {
+					if (game.hasRaceFinished()) {
+						game.updateAvatar(ghostPosition, ghostRotation);
+					}
+					continue;
+				}
 				game.updateGhostAvatar(ghostID, ghostPosition, ghostRotation, vForward, time);
 			}
 			else if(messageTokens[0].compareTo("uIB") == 0) {
@@ -287,6 +289,16 @@ public class ProtocolClient extends GameConnectionClient {
 		try {
 			String message = new String("finishTrack," + id.toString());
 			message += "," + selectedTrack;
+			sendPacket(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void completedRace(int selectedTrack) {
+		try {
+			String message = new String("completedRace," + id.toString());
 			sendPacket(message);
 		}
 		catch (IOException e) {
