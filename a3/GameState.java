@@ -13,16 +13,8 @@ public class GameState {
 	private Map<UUID, ItemBox> itemBoxes = Collections.synchronizedMap(new HashMap<UUID, ItemBox>());
 	private Map<UUID, Item> items =  Collections.synchronizedMap(new HashMap<UUID, Item>());
 	private long elapsedRaceTime;
-	private boolean raceStarted = false;
-	
-	public boolean hasRaceStarted() {
-		return raceStarted;
-	}
-	
-	public void setRaceStarted(boolean raceStarted) {
-		this.raceStarted = raceStarted;
-	}
-	
+	private RaceState raceState = RaceState.LOBBY;
+
 	public GameState() {
 		
 	}
@@ -95,5 +87,13 @@ public class GameState {
 
 	public void shouldRemoveGhostAvatar(UUID ghostID) {
 		ghostAvatars.get(ghostID).setShouldRemove(true);
+	}
+
+	public RaceState getRaceState() {
+		return raceState;
+	}
+
+	public void setRaceState(RaceState raceState) {
+		this.raceState = raceState;
 	}
 }

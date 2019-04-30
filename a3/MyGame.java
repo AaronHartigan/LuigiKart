@@ -86,6 +86,10 @@ public class MyGame extends VariableFrameRateGame {
 	private NodeOrbitController cameraController = null; 
 	private PhysicsBody physicsBody;
 	private long frametime;
+	private Light lobbyLight = null;
+	private Light sunlight = null;
+	private Entity playerEntity = null;
+	private RotationController lobbyRotator = null;
 
 	public static synchronized String createID() {
 	    return String.valueOf(particleID++);
@@ -161,19 +165,19 @@ public class MyGame extends VariableFrameRateGame {
 	
 	@Override
 	protected void setupScene(Engine eng, SceneManager sm) throws IOException {
+		lobbyRotator = new RotationController(Vector3f.createUnitVectorY(), 0.02f);
+		getEngine().getSceneManager().addController(lobbyRotator);
 		setupNetworking();
 		executeScript(script);
 		setupHUD();
 		createGroundPlane(sm);
+		setupAmbientLight(sm);
+		setupPointLight(sm);
 		createDolphinWithCamera(sm);
 		physicsBody = new PhysicsBody(playerNode.getWorldPosition(), playerNode.getWorldRotation());
 		initMeshes();
-
 		setupInputs();
 		createSkyBox(eng, sm);
-
-		setupAmbientLight(sm);
-		setupPointLight(sm);
 		setTextures(new PreloadTextures(this));
 		timerGui = new TimerGui(this);
 	}
@@ -239,14 +243,19 @@ public class MyGame extends VariableFrameRateGame {
 		float elapsTime = engine.getElapsedTimeMillis();
 		// System.out.println(Math.round(1000 / elapsTime));
 		processNetworking(elapsTime);
+		updateRaceState();
 		frametime = System.currentTimeMillis();
 		physicsBody.resetInputs();
 		im.update(elapsTime);
-		physicsBody.updatePhysics(elapsTime);
+		if (gameState.getRaceState() != RaceState.LOBBY) {
+			physicsBody.updatePhysics(elapsTime);	
+		}
 		playerNode.setLocalPosition(physicsBody.getPosition());
 		playerNode.setLocalRotation(physicsBody.getDirection());
 		playerAvatar.setLocalRotation(physicsBody.getRotation());
-		playerAvatarRotator.setLocalRotation(physicsBody.getSpinRotation());
+		if (gameState.getRaceState() != RaceState.LOBBY) {
+			playerAvatarRotator.setLocalRotation(physicsBody.getSpinRotation());
+		}
 		updateLapInfo();
 		updateHUD(engine, elapsTime);
 		long modifiedTime = script.lastModified();
@@ -254,7 +263,7 @@ public class MyGame extends VariableFrameRateGame {
 			lastScriptModifiedTime = modifiedTime;
 			updateScriptConstants();
 		}
-		if (hasRaceStarted()) {
+		if (gameState.getRaceState() == RaceState.RACING) {
 			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Update Information");
 			clientProtocol.updatePlayerInformation(
 				this.getPlayerPosition(),
@@ -331,16 +340,15 @@ public class MyGame extends VariableFrameRateGame {
 	}
 
 	protected void createDolphinWithCamera(SceneManager sm) throws IOException {
-		Entity dolphinE = sm.createEntity("dolphin", "dolphinHighPoly.obj");
-		dolphinE.setPrimitive(Primitive.TRIANGLES);
-		SceneNode dolphinN = sm.getRootSceneNode().createChildSceneNode(dolphinE.getName() + "Node");
+		playerEntity = sm.createEntity("dolphin", "dolphinHighPoly.obj");
+		playerEntity.setPrimitive(Primitive.TRIANGLES);
+		SceneNode dolphinN = sm.getRootSceneNode().createChildSceneNode(playerEntity.getName() + "Node");
 		SceneNode playerAvatarN = dolphinN.createChildSceneNode("playerAvatar");
 		SceneNode playerAvatarRotatorN = playerAvatarN.createChildSceneNode("playerAvatarCollisionRotator");
 		playerNode = dolphinN;
 		playerAvatar = playerAvatarN;
 		playerAvatarRotator = playerAvatarRotatorN;
-		dolphinN.translate(-45.2f, 0, -89.7f);
-		playerAvatarRotatorN.attachObject(dolphinE);
+		playerAvatarRotatorN.attachObject(playerEntity);
 		playerAvatarRotatorN.translate(0f, 0.3f, 0f);
 		//dolphinN.setPhysicsObject(new PhysicsObject());
 
@@ -352,7 +360,7 @@ public class MyGame extends VariableFrameRateGame {
 		setCameraToSky();
 	}
 	
-	protected void setCameraToSky() {
+	protected void setCameraToSky() {		
 		if (cameraController != null) {
 			cameraController.removeAllNodes();
 		}
@@ -361,6 +369,32 @@ public class MyGame extends VariableFrameRateGame {
 		camera.detachFromParent();
 		skyN.attachObject(camera);
 		camera.setMode('n');
+
+		playerNode.translate(skyN.getWorldPosition());
+		playerNode.moveForward(3f);
+		playerNode.moveRight(1.2f);
+		playerNode.moveDown(0.5f);
+		playerNode.yaw(Degreef.createFrom(180f));
+		
+		lobbyRotator.addNode(playerAvatarRotator);
+
+		if (lobbyLight == null) {
+			lobbyLight = getEngine().getSceneManager().createLight("lobbyLight", Light.Type.POINT);
+			lobbyLight.setAmbient(new Color(0.3f, 0.3f, 0.3f));
+			lobbyLight.setDiffuse(new Color(1f, 1f, 1f));
+			lobbyLight.setSpecular(new Color(1f, 1f, 1f));
+			lobbyLight.setRange(10f);
+			lobbyLight.setConstantAttenuation(0.8f);
+			lobbyLight.setLinearAttenuation(0.0000001f);
+			lobbyLight.setQuadraticAttenuation(0f);
+			lobbyLight.setFalloffExponent(0f);
+			SceneNode lobbyLightN = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode("lobbyLightNode");
+			lobbyLightN.translate(skyN.getWorldPosition());
+			lobbyLightN.attachObject(lobbyLight);
+		}
+		playerEntity.setCanReceiveShadows(false);
+		sunlight.setVisible(false);
+		lobbyLight.setVisible(true);
 	}
 	
 	public void setCameraToAvatar() {
@@ -372,6 +406,8 @@ public class MyGame extends VariableFrameRateGame {
 		dolphinCamera.attachObject(camera);
 		camera.setMode('n');
 		
+		lobbyRotator.removeNode(playerAvatarRotator);
+		
 		if (cameraController == null) {
 			cameraController = new NodeOrbitController(
 				dolphinN,
@@ -381,6 +417,9 @@ public class MyGame extends VariableFrameRateGame {
 			getEngine().getSceneManager().addController(cameraController);
 		}
 		cameraController.addNode(dolphinCamera);
+		playerEntity.setCanReceiveShadows(true);
+		sunlight.setVisible(true);
+		lobbyLight.setVisible(false);
 	}
 	
 	protected void setupAmbientLight(SceneManager sm) {
@@ -399,7 +438,7 @@ public class MyGame extends VariableFrameRateGame {
 		lightE.setMaterial(mat);
 		lightN.attachObject(lightE);
 		
-		Light sunlight = sm.createLight("sunLight", Light.Type.POINT);
+		sunlight = sm.createLight("sunLight", Light.Type.POINT);
 		sunlight.setAmbient(new Color(.15f, .15f, .15f));
 		sunlight.setDiffuse(new Color(1f, 1f, .8f));
 		sunlight.setSpecular(new Color(.1f, .1f, .1f));
@@ -927,12 +966,8 @@ public class MyGame extends VariableFrameRateGame {
 	
 	public void startRace(int trackID) {
 		if (clientState.getJoinedTrack() == trackID) {
-			gameState.setRaceStarted(true);
+			gameState.setRaceState(RaceState.COUNTDOWN);
 		}
-	}
-	
-	public boolean hasRaceStarted() {
-		return gameState.hasRaceStarted();
 	}
 	
 	public void inputAction() {
@@ -958,7 +993,7 @@ public class MyGame extends VariableFrameRateGame {
 	}
 	
 	public boolean isRacing() {
-		return hasRaceStarted() && !hasRaceFinished();
+		return gameState.getRaceState() == RaceState.RACING;
 	}
 	
 	public boolean hasRaceFinished() {
@@ -966,12 +1001,15 @@ public class MyGame extends VariableFrameRateGame {
 	}
 
 	public void updateRaceTime(long raceTime) {
-		if (isRacing()) {
+		if (gameState.getRaceState() == RaceState.RACING ||
+			gameState.getRaceState() == RaceState.COUNTDOWN
+		) {
 			timerGui.update(raceTime);
 		}
 	}
 	
 	protected void finishRace() {
+		gameState.setRaceState(RaceState.FINISH);
 		clientState.setRaceFinished(true);
 	}
 	
@@ -1048,7 +1086,7 @@ public class MyGame extends VariableFrameRateGame {
 	}
 	
 	public boolean isRacingInputDisabled() {
-		if (isRacing() && getGameState().getElapsedRaceTime() < 0) {
+		if (!(gameState.getRaceState() == RaceState.RACING)) {
 			return true;
 		}
 		if (physicsBody.isSpinning()) {
@@ -1059,5 +1097,22 @@ public class MyGame extends VariableFrameRateGame {
 	
 	public Item getItem() {
 		return item;
+	}
+	
+	public void updateRaceState() {
+		switch (gameState.getRaceState()) {
+		case COUNTDOWN:
+			if (gameState.getElapsedRaceTime() > 0) {
+				gameState.setRaceState(RaceState.RACING);
+			}
+			break;
+		default:
+			break;
+		}
+	}
+
+	public void joinTrack(int trackID) {
+		clientState.setJoinedTrack(trackID);
+		gameState.setRaceState(RaceState.COUNTDOWN);
 	}
 }

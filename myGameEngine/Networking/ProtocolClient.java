@@ -111,7 +111,7 @@ public class ProtocolClient extends GameConnectionClient {
 				boolean success = messageTokens[4].compareTo("success") == 0;
 				if (clientID.equals(id)) {
 					if (success) {
-						game.getClientState().setJoinedTrack(trackID);
+						game.joinTrack(trackID);
 						game.setCameraToAvatar();
 						game.setStartingPosition(position);
 					}

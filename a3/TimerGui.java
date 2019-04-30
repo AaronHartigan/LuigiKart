@@ -160,13 +160,17 @@ public class TimerGui {
 
 		// System.out.println("" + min0T + min1T + ":" + sec0T + sec1T + ":" + ms0T + ms1T + ms2T);
 		countdownN.detachAllObjects();
-		if (timeL < 0) {
+		if (timeL < 0 && timeL >= -3000) {
 			countdownN.attachObject(countdown);
 			countdownT.setTexture(
 				g.getTextures().getTexture(
 					(int) Math.min(3, (Math.abs(timeL) / 1000) % 10 + 1)
 				)
 			);
+			long milis = -(timeL % 1000);
+			float scale = (float) milis / 1000;
+			scale = Math.max(0.001f, scale);
+			countdownN.setLocalScale(scale * COUNTDOWN_SCALE, scale * COUNTDOWN_SCALE, scale * COUNTDOWN_SCALE);
 		}
 		minute1T.setTexture(g.getTextures().getTexture(min1T));
 

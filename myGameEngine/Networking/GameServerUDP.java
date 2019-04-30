@@ -15,6 +15,7 @@ import a3.Item;
 import a3.ItemBox;
 import a3.ItemType;
 import a3.PhysicsBody;
+import a3.RaceState;
 import a3.Track1;
 import ray.networking.server.GameConnectionServer;
 import ray.networking.server.IClientInfo;
@@ -225,7 +226,10 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	}
 
 	private boolean isRacingInputDisabled(PhysicsBody pb) {
-		if (gameState.getElapsedRaceTime() < 0) {
+		if (gameState.getRaceState() == RaceState.LOBBY) {
+			return true;
+		}
+		if (gameState.getRaceState() == RaceState.COUNTDOWN) {
 			return true;
 		}
 		if (pb.isSpinning()) {
@@ -233,17 +237,41 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 		}
 		return false;
 	}
+	
+	private void updateRaceState() {
+		switch (gameState.getRaceState()) {
+		case COUNTDOWN:
+			if (gameState.getElapsedRaceTime() >= 0) {
+				gameState.setRaceState(RaceState.RACING);
+			}
+			break;
+		case RACING:
+			if (serverState.getConnectedPlayers().size() <= 0) {
+				gameState.setRaceState(RaceState.FINISH);
+			}
+			break;
+		default:
+			break;
+		}
+	}
 
 	public void sendPackets() {
+		updateRaceState();
     	if (shouldInitRace) {
     		initRace();
+    	}
+    	else if (gameState.getRaceState() == RaceState.FINISH) {
+    		resetTrack(1);
+    		return;
     	}
     	long newTime = System.currentTimeMillis();
     	elapsedTime = newTime - gameTimer;
     	gameTimer = newTime;
-    	if (!gameState.hasRaceStarted()) {
+ 
+    	if (gameState.getRaceState() == RaceState.LOBBY) {
     		return;
     	}
+
     	gameState.setElapsedRaceTime(gameState.getElapsedRaceTime() + elapsedTime);
     	try {
 			String message = new String("raceTime," + gameState.getElapsedRaceTime());
@@ -548,8 +576,8 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	private void initRace() {
 		if (!isRaceInited) {
 			generateNPCs();
-			gameState.setRaceStarted(true);
-			gameState.setElapsedRaceTime(-3000);
+			gameState.setRaceState(RaceState.COUNTDOWN);
+			gameState.setElapsedRaceTime(-5000);
 			isRaceInited = true;
 		}
 		setShouldInitRace(false);
@@ -557,6 +585,20 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	
 	private void resetTrack(int trackID) {
 		isRaceInited = false;
+		synchronized(gameState.getGhostAvatars()) {
+			Iterator<Entry<UUID, GhostAvatar>> avatarIter = gameState.getGhostAvatars().entrySet().iterator();
+	    	while (avatarIter.hasNext()) {
+	            Map.Entry<UUID, GhostAvatar> pair = (Map.Entry<UUID, GhostAvatar>) avatarIter.next();
+	            UUID id = pair.getKey();
+	            if (!(pair.getValue().isNPC())) {
+	            	continue;
+	            }
+	    		gameState.removeGhostAvatar(id);
+	    		sendByeMessages(id);
+	    		avatarIter.remove();
+	    	}
+	    	gameState.setElapsedRaceTime(0l);
+		}
 	}
 
 	private void initTrack(int trackID) {
