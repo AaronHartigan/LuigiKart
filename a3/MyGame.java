@@ -170,6 +170,7 @@ public class MyGame extends VariableFrameRateGame {
 		setupNetworking();
 		executeScript(script);
 		setupHUD();
+		createTree(sm);
 		createGroundPlane(sm);
 		setupAmbientLight(sm);
 		setupPointLight(sm);
@@ -180,6 +181,15 @@ public class MyGame extends VariableFrameRateGame {
 		createSkyBox(eng, sm);
 		setTextures(new PreloadTextures(this));
 		timerGui = new TimerGui(this);
+	}
+
+	private void createTree(SceneManager sm) throws IOException {
+		Entity treeE = getEngine().getSceneManager().createEntity("tree", "tree.obj");
+		SceneNode treeN = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(treeE.getName() + "Node");
+		treeN.attachObject(treeE);
+		// treeN.scale(0.01f, 0.01f, 0.01f);
+		treeN.translate(Vector3f.createFrom(-36.376953125f, 3f, -67.3828125f));
+		// treeN.translate(-1000000f, 0f, 0f);
 	}
 
 	private void initMeshes() throws IOException {
@@ -342,9 +352,11 @@ public class MyGame extends VariableFrameRateGame {
 			questionmarkdot.yaw(Degreef.createFrom(angle));
 		}
 	}
-
+	
+	float CAR_HEIGHT_OFFSET = 0.0f;
+	float CAR_FORWARD_OFFSET = -1f;
 	protected void createDolphinWithCamera(SceneManager sm) throws IOException {
-		playerEntity = sm.createEntity("dolphin", "dolphinHighPoly.obj");
+		playerEntity = sm.createEntity("dolphin", "car1.obj");
 		playerEntity.setPrimitive(Primitive.TRIANGLES);
 		SceneNode dolphinN = sm.getRootSceneNode().createChildSceneNode(playerEntity.getName() + "Node");
 		SceneNode playerAvatarN = dolphinN.createChildSceneNode("playerAvatar");
@@ -353,7 +365,8 @@ public class MyGame extends VariableFrameRateGame {
 		playerAvatar = playerAvatarN;
 		playerAvatarRotator = playerAvatarRotatorN;
 		playerAvatarRotatorN.attachObject(playerEntity);
-		playerAvatarRotatorN.translate(0f, 0.3f, 0f);
+		playerAvatarRotatorN.translate(0f, CAR_HEIGHT_OFFSET, CAR_FORWARD_OFFSET);
+		playerAvatarRotatorN.scale(0.3f, 0.3f, 0.3f);
 		//dolphinN.setPhysicsObject(new PhysicsObject());
 
 		SceneNode skyN = sm.getRootSceneNode().createChildSceneNode("skyNode");
@@ -694,11 +707,10 @@ public class MyGame extends VariableFrameRateGame {
 	
 	public void updateGameStateDisplay() {
 		SceneManager sm = getEngine().getSceneManager();
-		float CAR_HEIGHT_OFFSET = 0.3f;
 		for (Entry<UUID, GhostAvatar> entry : gameState.getGhostAvatars().entrySet()) {
 			SceneNode ghostN = sm.getSceneNode(entry.getKey().toString());
 			ghostN.setLocalPosition(entry.getValue().getPos());
-			ghostN.moveUp(CAR_HEIGHT_OFFSET);
+			ghostN.moveUp(0.3f); // CAR_HEIGHT_OFFSET
 			ghostN.setLocalRotation(entry.getValue().getRot());
 		}
 		for (Entry<UUID, Item> entry : gameState.getItems().entrySet()) {
