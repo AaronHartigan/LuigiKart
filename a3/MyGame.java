@@ -31,6 +31,8 @@ import ray.rage.scene.Entity;
 import ray.rage.scene.Light;
 import ray.rage.scene.SceneManager;
 import ray.rage.scene.SceneNode;
+import ray.rage.scene.SkeletalEntity;
+import static ray.rage.scene.SkeletalEntity.EndType.LOOP;
 import ray.rage.scene.SkyBox;
 import ray.rage.scene.Tessellation;
 import ray.rage.scene.controllers.RotationController;
@@ -41,6 +43,7 @@ import ray.rml.Matrix3;
 import ray.rml.Matrix3f;
 import ray.rml.Vector3;
 import ray.rml.Vector3f;
+
 
 import java.awt.*;
 import java.io.*;
@@ -184,11 +187,23 @@ public class MyGame extends VariableFrameRateGame {
 	}
 
 	private void createTree(SceneManager sm) throws IOException {
-		Entity treeE = getEngine().getSceneManager().createEntity("tree", "tree.obj");
+		//Entity treeE = getEngine().getSceneManager().createEntity("tree", "tree.obj");
+		
+		SkeletalEntity treeE = sm.createSkeletalEntity("tree", "tree.rkm", "tree.rks");
+		Texture tex = sm.getTextureManager().getAssetByPath("tree.png");
+		TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+		tstate.setTexture(tex);
+		treeE.setRenderState(tstate);
+		
+		treeE.loadAnimation("waveAnimation", "tree.rka");
+		treeE.stopAnimation();
+		treeE.playAnimation("waveAnimation", 0.5f, LOOP, 0);
 		SceneNode treeN = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(treeE.getName() + "Node");
 		treeN.attachObject(treeE);
 		// treeN.scale(0.01f, 0.01f, 0.01f);
-		treeN.translate(Vector3f.createFrom(-36.376953125f, 3f, -67.3828125f));
+		treeN.translate(Vector3f.createFrom(-36.376953125f, 2f, -67.3828125f));
+		//treeN.rotate(Degreef.createFrom(-90f), Vector3f.createUnitVectorY());
+		treeN.rotate(Degreef.createFrom(-90f), Vector3f.createUnitVectorX());
 		// treeN.translate(-1000000f, 0f, 0f);
 	}
 
@@ -285,6 +300,8 @@ public class MyGame extends VariableFrameRateGame {
 				physicsBody.getVForward()
 			);
 		}
+		SkeletalEntity treeSE = (SkeletalEntity) engine.getSceneManager().getEntity("tree");
+		treeSE.update();
 		updatePlayerItem();
 		updateGameStateDisplay();
 		updateItemBoxesRotation();
@@ -353,10 +370,13 @@ public class MyGame extends VariableFrameRateGame {
 		}
 	}
 	
-	float CAR_HEIGHT_OFFSET = 0.0f;
-	float CAR_FORWARD_OFFSET = -1f;
+	float CAR_HEIGHT_OFFSET = 0.3f;
+	float CAR_FORWARD_OFFSET = 0f;
 	protected void createDolphinWithCamera(SceneManager sm) throws IOException {
 		playerEntity = sm.createEntity("dolphin", "car1.obj");
+		CullingState cullingState = (CullingState) getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.CULLING);
+		cullingState.setCulling(CullingState.Culling.DISABLED);
+		playerEntity.setRenderState(cullingState);
 		playerEntity.setPrimitive(Primitive.TRIANGLES);
 		SceneNode dolphinN = sm.getRootSceneNode().createChildSceneNode(playerEntity.getName() + "Node");
 		SceneNode playerAvatarN = dolphinN.createChildSceneNode("playerAvatar");
@@ -681,8 +701,9 @@ public class MyGame extends VariableFrameRateGame {
 			SceneManager sm = getEngine().getSceneManager();
 			SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode(ghostID.toString());
 			ghostN.setLocalPosition(ghostPosition);
-			Entity dolphinE = sm.createEntity(ghostID.toString(), "dolphinHighPoly.obj");
+			Entity dolphinE = sm.createEntity(ghostID.toString(), "car1.obj");
 			ghostN.attachObject(dolphinE);
+			ghostN.scale(0.3f, 0.3f, 0.3f);
 			gameState.createGhostAvatar(ghostID, ghostPosition);
 		}
 		catch (Exception e) {
