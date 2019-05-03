@@ -2,8 +2,10 @@ package a3;
 
 import myGameEngine.*;
 import myGameEngine.Networking.ProtocolClient;
-import myGameEngine.controllers.BungeeController;
+import myGameEngine.controllers.BananaDeathAnimationController;
+import myGameEngine.controllers.ItemGrowthController;
 import myGameEngine.controllers.NodeOrbitController;
+import myGameEngine.controllers.ParticleController;
 import myGameEngine.myRage.HUDString;
 import net.java.games.input.Controller;
 import ray.input.GenericInputManager;
@@ -17,34 +19,38 @@ import ray.rage.game.Game;
 import ray.rage.game.VariableFrameRateGame;
 import ray.rage.rendersystem.RenderSystem;
 import ray.rage.rendersystem.RenderWindow;
-import ray.rage.rendersystem.Renderable.*;
+import ray.rage.rendersystem.Renderable.Primitive;
 import ray.rage.rendersystem.gl4.GL4RenderSystem;
-import ray.rage.rendersystem.shader.GpuShaderProgram;
-import ray.rage.rendersystem.states.*;
-import ray.rage.rendersystem.states.RenderState.*;
+import ray.rage.rendersystem.states.RenderState;
+import ray.rage.rendersystem.states.TextureState;
+import ray.rage.rendersystem.states.CullingState;
 import ray.rage.rendersystem.states.TextureState.WrapMode;
+import ray.rage.rendersystem.shader.GpuShaderProgram;
 import ray.rage.scene.Camera;
 import ray.rage.scene.Entity;
 import ray.rage.scene.Light;
-import ray.rage.scene.ManualObject;
 import ray.rage.scene.SceneManager;
 import ray.rage.scene.SceneNode;
+import ray.rage.scene.SkeletalEntity;
+import static ray.rage.scene.SkeletalEntity.EndType.LOOP;
 import ray.rage.scene.SkyBox;
 import ray.rage.scene.Tessellation;
-import ray.rage.scene.Camera.Frustum.*;
 import ray.rage.scene.controllers.RotationController;
-import ray.rage.util.BufferUtil;
+import ray.rage.scene.Camera.Frustum.*;
 import ray.rage.util.Configuration;
 import ray.rml.Degreef;
 import ray.rml.Matrix3;
+import ray.rml.Matrix3f;
 import ray.rml.Vector3;
 import ray.rml.Vector3f;
+
 
 import java.awt.*;
 import java.io.*;
 import java.net.InetAddress;
 import java.rmi.UnknownHostException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map.Entry;
 import java.util.UUID;
 
@@ -59,32 +65,38 @@ public class MyGame extends VariableFrameRateGame {
 
 	private GenericInputManager im = new GenericInputManager();
 	private GL4RenderSystem rs;
-	private int score = 0;
-	private String bannerMsg = "";
-	private int bannerTime = 2000;
 	private float MOVE_SPEED = 0.01f;
 	private float ROTATE_SPEED = 0.1f;
-	private Planet[] planets = new Planet[] {
-		new Planet("sun", 80f, 100f, 10f, 11.2f, 0.0004f),
-		new Planet("Mercury", 50f, 0.7467f, 50f, 0.383f, 0.00017f),
-		new Planet("Venus", 38f, 1.85f, -30f, 0.949f, -0.00004f),
-		new Planet("Earth", 20f, 1.9496f, 10f, 1.0f, .01f),
-		new Planet("Mars", -2f, 1.0372f, 40f, 0.532f, 0.0097f),
-		new Planet("Jupiter", -30f, 11.308f, -40f, 5.8f, .024f),
-		new Planet("Saturn", -40f, 8.68f, 45f, 4.45f, .022f),
-		new Planet("Uranus", -20f, 3.919f, 5f, 2.01f, -.0138f),
-		new Planet("Neptune", 15f, 3.665f, -30f, 1.88f, .0148f)
-	};
 	private ScriptEngine jsEngine = null;
 	private File script = new File("script.js");
 	private long lastScriptModifiedTime = 0;
 	private SceneNode playerNode = null;
+	private SceneNode playerAvatar = null;
+	private SceneNode playerAvatarRotator = null;
 	private String serverAddr;
 	private int serverPort;
 	private ProtocolType serverProtocol;
 	private ProtocolClient clientProtocol;
-	private boolean isConnected = false;
+	private Item item = null;
+	private ClientState clientState = new ClientState();
 	private GameState gameState = new GameState();
+	private static long particleID = 0;
+	private PreloadTextures textures = null;
+	private TimerGui timerGui = null;
+	private int raceLap = 0;
+	private int currentZone = 3;
+	private final boolean SHOW_PACKET_MESSAGES = false;
+	private NodeOrbitController cameraController = null; 
+	private PhysicsBody physicsBody;
+	private long frametime;
+	private Light lobbyLight = null;
+	private Light sunlight = null;
+	private Entity playerEntity = null;
+	private RotationController lobbyRotator = null;
+
+	public static synchronized String createID() {
+	    return String.valueOf(particleID++);
+	}    
 
 	public MyGame(String serverAddr, int serverPort) {
 		super();
@@ -110,7 +122,23 @@ public class MyGame extends VariableFrameRateGame {
 	
 	@Override
 	protected void setupWindow(RenderSystem rs, GraphicsEnvironment ge) {
-		RenderWindow rw = rs.createRenderWindow(new DisplayMode(1000, 700, 24, 60), false);
+		GraphicsDevice device = ge.getDefaultScreenDevice();
+		DisplayMode[] modes = device.getDisplayModes();
+		DisplayMode fullscreen = modes[modes.length - 1];
+		DisplayMode windowed = new DisplayMode(1000, 700, 32, 60);
+		/*
+		DisplaySettingsDialog dsd = new DisplaySettingsDialog(ge.getDefaultScreenDevice());
+		dsd.showIt();
+		System.out.println(dsd.getSelectedDisplayMode());
+		RenderWindow rw = rs.createRenderWindow(
+			dsd.getSelectedDisplayMode(),
+			dsd.isFullScreenModeSelected()
+		);
+		*/
+		RenderWindow rw = rs.createRenderWindow(
+			windowed,
+			false
+		);
 		Configuration conf = getEngine().getConfiguration();
 		ImageIcon icon = new ImageIcon(conf.valueOf("assets.icons.window"));
 		rw.setIconImage(icon.getImage());
@@ -140,31 +168,61 @@ public class MyGame extends VariableFrameRateGame {
 	
 	@Override
 	protected void setupScene(Engine eng, SceneManager sm) throws IOException {
+		lobbyRotator = new RotationController(Vector3f.createUnitVectorY(), 0.02f);
+		getEngine().getSceneManager().addController(lobbyRotator);
 		setupNetworking();
 		executeScript(script);
 		setupHUD();
-		createDolphinWithCamera(sm);
-		for (Planet p : this.planets) {
-			createPlanet(sm, p);
-		}
+		createTree(sm);
 		createGroundPlane(sm);
-
+		setupAmbientLight(sm);
+		setupPointLight(sm);
+		createDolphinWithCamera(sm);
+		physicsBody = new PhysicsBody(playerNode.getWorldPosition(), playerNode.getWorldRotation());
+		initMeshes();
 		setupInputs();
 		createSkyBox(eng, sm);
-		// Render manuel object twice so it can be seen from both sides
-		createManualObject(eng, sm, false);
-		createManualObject(eng, sm, true);
-
-		setupAmbientLight(sm);
-		setupPointLight(sm, getEngine().getSceneManager().getSceneNode("sunNode"));
-		Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
-		mat.setEmissive(Color.WHITE);
-		Entity sunE = getEngine().getSceneManager().getEntity("sun");
-		sunE.setMaterial(mat);
+		setTextures(new PreloadTextures(this));
+		timerGui = new TimerGui(this);
 	}
 
+	private void createTree(SceneManager sm) throws IOException {
+		//Entity treeE = getEngine().getSceneManager().createEntity("tree", "tree.obj");
+		
+		SkeletalEntity treeE = sm.createSkeletalEntity("tree", "tree.rkm", "tree.rks");
+		Texture tex = sm.getTextureManager().getAssetByPath("tree.png");
+		TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+		tstate.setTexture(tex);
+		treeE.setRenderState(tstate);
+		
+		treeE.loadAnimation("waveAnimation", "tree.rka");
+		treeE.stopAnimation();
+		treeE.playAnimation("waveAnimation", 0.5f, LOOP, 0);
+		SceneNode treeN = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(treeE.getName() + "Node");
+		treeN.attachObject(treeE);
+		// treeN.scale(0.01f, 0.01f, 0.01f);
+		treeN.translate(Vector3f.createFrom(-36.376953125f, 2f, -67.3828125f));
+		//treeN.rotate(Degreef.createFrom(-90f), Vector3f.createUnitVectorY());
+		treeN.rotate(Degreef.createFrom(-90f), Vector3f.createUnitVectorX());
+		// treeN.translate(-1000000f, 0f, 0f);
+	}
+
+	private void initMeshes() throws IOException {
+		createBanana();
+	}
+	
+	private void createBanana() throws IOException {
+		Entity bananaE = getEngine().getSceneManager().createEntity("banana", "banana.obj");
+		SceneNode bananaN = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(bananaE.getName() + "Node");
+		bananaN.attachObject(bananaE);
+		bananaN.scale(0.01f, 0.01f, 0.01f);
+		//bananaN.translate(Vector3f.createFrom(-36.376953125f, 3f, -67.3828125f));
+		bananaN.translate(-1000000f, 0f, 0f);
+	}
+	
 	private void setupNetworking() {
 		try {
+			System.out.println("Starting Protocol Client");
 			clientProtocol = new ProtocolClient(
 				InetAddress.getByName(serverAddr),
 				serverPort,
@@ -172,10 +230,7 @@ public class MyGame extends VariableFrameRateGame {
 				this
 			);
 		}
-		catch (UnknownHostException e) {
-			e.printStackTrace();
-		}
-		catch (IOException e) {
+		catch (Exception e) {
 			e.printStackTrace();
 		}
 		
@@ -183,6 +238,7 @@ public class MyGame extends VariableFrameRateGame {
 			System.out.println("Missing protocol host");
 		}
 		else {
+			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Join Message");
 			clientProtocol.sendJoinMessage();
 		}
 	}
@@ -210,41 +266,66 @@ public class MyGame extends VariableFrameRateGame {
 	@Override
 	protected void update(Engine engine) {
 		float elapsTime = engine.getElapsedTimeMillis();
+		// System.out.println(Math.round(1000 / elapsTime));
 		processNetworking(elapsTime);
+		updateRaceState();
+		frametime = System.currentTimeMillis();
+		physicsBody.resetInputs();
 		im.update(elapsTime);
-		this.checkCollisions();
+		if (gameState.getRaceState() != RaceState.LOBBY
+			&& gameState.getRaceState() != RaceState.FINISH
+		) {
+			physicsBody.updatePhysics(elapsTime);	
+		}
+		playerNode.setLocalPosition(physicsBody.getPosition());
+		playerNode.setLocalRotation(physicsBody.getDirection());
+		playerAvatar.setLocalRotation(physicsBody.getRotation());
+		if (gameState.getRaceState() != RaceState.LOBBY) {
+			playerAvatarRotator.setLocalRotation(physicsBody.getSpinRotation());
+		}
+		updateLapInfo();
 		updateHUD(engine, elapsTime);
-		updateDolphinHeight();
 		long modifiedTime = script.lastModified();
 		if (modifiedTime > lastScriptModifiedTime) {
 			lastScriptModifiedTime = modifiedTime;
 			updateScriptConstants();
 		}
-		clientProtocol.updatePlayerInformation(
-			this.getPlayerPosition(),
-			this.getPlayerRotation()
-		);
-		updateGameState();
+		if (gameState.getRaceState() == RaceState.RACING ||
+			gameState.getRaceState() == RaceState.COUNTDOWN
+		) {
+			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Update Information");
+			clientProtocol.updatePlayerInformation(
+				this.getPlayerPosition(),
+				this.getPlayerRotation(),
+				physicsBody.getVForward()
+			);
+		}
+		SkeletalEntity treeSE = (SkeletalEntity) engine.getSceneManager().getEntity("tree");
+		treeSE.update();
+		updatePlayerItem();
+		updateGameStateDisplay();
+		updateItemBoxesRotation();
+		// PRINT PLAYER POSITION
+		// System.out.println(playerNode.getWorldPosition());
 	}
-	
-	
+
 	public void updateHUD(Engine engine, float elapsTime) {
 		rs = (GL4RenderSystem) engine.getRenderSystem();
 		
 		ArrayList<HUDString> stringList = rs.getHUDStringsList();
 
-		int x = 15;
-		int y = 15;
-		stringList.get(0).setAll("Player " + (1) + "    Score: " + score, x, y);
-		if (bannerTime < 0) {
-			stringList.get(2).setStr("");
-		}
-		else if (bannerMsg.length() > 0) {
-			this.bannerTime -= elapsTime;
-			int bannerX = rs.getCanvas().getWidth() / 2 -  (int) (bannerMsg.length() * 4.1f);
-			int BannerY = rs.getCanvas().getHeight() - 50;
-			stringList.get(2).setAll(bannerMsg, bannerX, BannerY);
-		}
+		int bottomLeftX = 15;
+		int bottomLeftY = 15;
+		int lap = raceLap == 0 ? 1 : raceLap;
+		stringList.get(0).setAll("Lap " + lap + "/3", bottomLeftX, bottomLeftY);
+		
+		int topLeftX = 15;
+		int topLeftY = rs.getCanvas().getHeight() - 30;
+		stringList.get(1).setAll("1st", topLeftX, topLeftY);
+
+		int bottomRightX = rs.getCanvas().getWidth() - 100;
+		int bottomRightY = 15;
+		stringList.get(2).setAll("" + Math.round((physicsBody.getVForward() + physicsBody.getGravityForce()) * 3) + " MPH", bottomRightX, bottomRightY);
 	}
 
 	private void processNetworking(float elapsTime) {
@@ -253,46 +334,148 @@ public class MyGame extends VariableFrameRateGame {
 		}
 	}
 
-	protected void updateDolphinHeight() {
-		SceneNode dolphin = getEngine().getSceneManager().getSceneNode("dolphinNode");
-		Vector3 wp = dolphin.getWorldPosition();
-		Tessellation plane = getEngine().getSceneManager().getTessellation("plane");
-		
-		float newHeight = plane.getWorldHeight(wp.x(), wp.z()) + 1.3f;
-		dolphin.setLocalPosition(wp.x(), newHeight, wp.z());
-		
+	protected void updateItemBoxesRotation() {
+		SceneManager sm = getEngine().getSceneManager();
+		for (HashMap.Entry<UUID, ItemBox> entry : gameState.getItemBoxes().entrySet()) {
+			UUID id = entry.getKey();
+			
+			SceneNode itemBoxN = sm.getSceneNode(id.toString());
+			ItemBox itemBox = entry.getValue();
+			Vector3 lp = itemBoxN.getLocalPosition();
+			if (itemBox.getIsActive() == 0) {
+				itemBoxN.setLocalPosition(-1000000f, lp.y(), lp.z());
+			}
+			else {
+				itemBoxN.setLocalPosition(itemBox.getPos().x(), lp.y(), lp.z());
+			}
+
+			float scale = entry.getValue().scaleFactor();
+			itemBoxN.setLocalScale(scale * 0.6f, scale * 0.6f, scale * 0.6f);
+			
+			SceneNode questionmarkbody = sm.getSceneNode(id.toString() + "questionmarkbody");
+			SceneNode questionmarkdot = sm.getSceneNode(id.toString() + "questionmarkdot");
+			SceneNode cameraNode = sm.getSceneNode("dolphinNodeCamera");
+			
+			Vector3 qmWP = questionmarkbody.getWorldPosition();
+			Vector3 cWP = cameraNode.getWorldPosition();
+			float angle = (float) Math.toDegrees(Math.atan((qmWP.x() - cWP.x())/(qmWP.z() - cWP.z())));
+			if (qmWP.z() > cWP.z()) {
+				angle += 180f;
+			}
+			
+			questionmarkbody.setLocalRotation(Matrix3f.createIdentityMatrix());
+			questionmarkbody.yaw(Degreef.createFrom(angle));
+			questionmarkdot.setLocalRotation(Matrix3f.createIdentityMatrix());
+			questionmarkdot.yaw(Degreef.createFrom(angle));
+		}
 	}
-
+	
+	float CAR_HEIGHT_OFFSET = 0.3f;
+	float CAR_FORWARD_OFFSET = 0f;
 	protected void createDolphinWithCamera(SceneManager sm) throws IOException {
-		Entity dolphinE = sm.createEntity("dolphin", "dolphinHighPoly.obj");
-		dolphinE.setPrimitive(Primitive.TRIANGLES);
-		SceneNode dolphinN = sm.getRootSceneNode().createChildSceneNode(dolphinE.getName() + "Node");
+		playerEntity = sm.createEntity("dolphin", "car1.obj");
+		CullingState cullingState = (CullingState) getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.CULLING);
+		cullingState.setCulling(CullingState.Culling.DISABLED);
+		playerEntity.setRenderState(cullingState);
+		playerEntity.setPrimitive(Primitive.TRIANGLES);
+		SceneNode dolphinN = sm.getRootSceneNode().createChildSceneNode(playerEntity.getName() + "Node");
+		SceneNode playerAvatarN = dolphinN.createChildSceneNode("playerAvatar");
+		SceneNode playerAvatarRotatorN = playerAvatarN.createChildSceneNode("playerAvatarCollisionRotator");
 		playerNode = dolphinN;
-		//dolphinN.moveBackward(2.0f);
-		//dolphinN.moveUp(0.3f);
-		dolphinN.attachObject(dolphinE);
+		playerAvatar = playerAvatarN;
+		playerAvatarRotator = playerAvatarRotatorN;
+		playerAvatarRotatorN.attachObject(playerEntity);
+		playerAvatarRotatorN.translate(0f, CAR_HEIGHT_OFFSET, CAR_FORWARD_OFFSET);
+		playerAvatarRotatorN.scale(0.3f, 0.3f, 0.3f);
+		//dolphinN.setPhysicsObject(new PhysicsObject());
 
-		SceneNode dolphinCamera = dolphinN.createChildSceneNode(dolphinN.getName() + "Camera");
+		SceneNode skyN = sm.getRootSceneNode().createChildSceneNode("skyNode");
+		skyN.translate(-50f, 15f, -110f);
+		skyN.rotate(Degreef.createFrom(20f), Vector3f.createUnitVectorY());
+		skyN.rotate(Degreef.createFrom(15f), Vector3f.createUnitVectorX());
+		dolphinN.createChildSceneNode(dolphinN.getName() + "Camera");
+		setCameraToSky();
+	}
+	
+	protected void setCameraToSky() {		
+		if (cameraController != null) {
+			cameraController.removeAllNodes();
+		}
+		Camera camera = getEngine().getSceneManager().getCamera("MainCamera");
+		SceneNode skyN = getEngine().getSceneManager().getSceneNode("skyNode");
+		camera.detachFromParent();
+		skyN.attachObject(camera);
+		camera.setMode('n');
 
-		Camera camera = sm.getCamera("MainCamera");
+		playerNode.translate(skyN.getWorldPosition());
+		playerNode.moveForward(3f);
+		playerNode.moveRight(1.2f);
+		playerNode.moveDown(0.5f);
+		playerNode.yaw(Degreef.createFrom(180f));
+		
+		lobbyRotator.addNode(playerAvatarRotator);
+
+		if (lobbyLight == null) {
+			lobbyLight = getEngine().getSceneManager().createLight("lobbyLight", Light.Type.POINT);
+			lobbyLight.setAmbient(new Color(0.3f, 0.3f, 0.3f));
+			lobbyLight.setDiffuse(new Color(1f, 1f, 1f));
+			lobbyLight.setSpecular(new Color(1f, 1f, 1f));
+			lobbyLight.setRange(10f);
+			lobbyLight.setConstantAttenuation(0.8f);
+			lobbyLight.setLinearAttenuation(0.0000001f);
+			lobbyLight.setQuadraticAttenuation(0f);
+			lobbyLight.setFalloffExponent(0f);
+			SceneNode lobbyLightN = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode("lobbyLightNode");
+			lobbyLightN.translate(skyN.getWorldPosition());
+			lobbyLightN.attachObject(lobbyLight);
+		}
+		playerEntity.setCanReceiveShadows(false);
+		sunlight.setVisible(false);
+		lobbyLight.setVisible(true);
+	}
+	
+	public void setCameraToAvatar() {
+		Camera camera = getEngine().getSceneManager().getCamera("MainCamera");
+		SceneNode dolphinCamera = getEngine().getSceneManager().getSceneNode("dolphinNodeCamera");
+		SceneNode dolphinN = getEngine().getSceneManager().getSceneNode("dolphinNode");
+
+		camera.detachFromParent();
 		dolphinCamera.attachObject(camera);
 		camera.setMode('n');
 		
-		NodeOrbitController noc = new NodeOrbitController(
-			dolphinN,
-			(GL4RenderSystem) getEngine().getRenderSystem(),
-			im
-		);
-		noc.addNode(dolphinCamera);
-		sm.addController(noc);
+		lobbyRotator.removeNode(playerAvatarRotator);
+		
+		if (cameraController == null) {
+			cameraController = new NodeOrbitController(
+				dolphinN,
+				(GL4RenderSystem) getEngine().getRenderSystem(),
+				im
+			);
+			getEngine().getSceneManager().addController(cameraController);
+		}
+		cameraController.addNode(dolphinCamera);
+		playerEntity.setCanReceiveShadows(true);
+		sunlight.setVisible(true);
+		lobbyLight.setVisible(false);
 	}
 	
 	protected void setupAmbientLight(SceneManager sm) {
-		sm.getAmbientLight().setIntensity(new Color(0.2f, 0.2f, 0.2f));
+		sm.getAmbientLight().setIntensity(new Color(0.3f, 0.3f, 0.3f));
 	}
 	
-	protected void setupPointLight(SceneManager sm, SceneNode node) {
-		Light sunlight = sm.createLight("sunLight", Light.Type.POINT);
+	protected void setupPointLight(SceneManager sm) throws IOException {
+		Entity lightE = sm.createEntity("sun", "cube.obj");
+		lightE.setPrimitive(Primitive.TRIANGLES);
+
+		SceneNode lightN = sm.getRootSceneNode().createChildSceneNode("lightNode");
+		lightN.translate(25f, 150f, 200f);
+		lightN.scale(0.0000001f, 0.0000001f, 0.0000001f);
+		Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
+		mat.setEmissive(Color.WHITE);
+		lightE.setMaterial(mat);
+		lightN.attachObject(lightE);
+		
+		sunlight = sm.createLight("sunLight", Light.Type.POINT);
 		sunlight.setAmbient(new Color(.15f, .15f, .15f));
 		sunlight.setDiffuse(new Color(1f, 1f, .8f));
 		sunlight.setSpecular(new Color(.1f, .1f, .1f));
@@ -301,49 +484,54 @@ public class MyGame extends VariableFrameRateGame {
 		sunlight.setLinearAttenuation(0.0000001f);
 		sunlight.setQuadraticAttenuation(0f);
 		sunlight.setFalloffExponent(0f);
-		node.attachObject(sunlight);
+		lightN.attachObject(sunlight);
 	}
 	
 	// Setup all inputs (keyboard and controller) needed for the game
 	protected void setupInputs() {
 		ArrayList<Controller> controllers = im.getControllers();
-		SceneNode dolphin = getEngine().getSceneManager().getSceneNode("dolphinNode");
 		for (Controller c : controllers) {
 			if (c.getType() == Controller.Type.KEYBOARD) {
 				im.associateAction(
 					c,
 					Component.Identifier.Key.W,
-					new MoveNodeForwardAction(dolphin, this),
-					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-				);
-				im.associateAction(
-					c,
-					Component.Identifier.Key.Q,
-					new MoveNodeLeftAction(dolphin, this),
+					new StartAccelerationAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 				im.associateAction(
 					c,
 					Component.Identifier.Key.S,
-					new MoveNodeBackwardAction(dolphin, this),
-					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-				);
-				im.associateAction(
-					c,
-					Component.Identifier.Key.E,
-					new MoveNodeRightAction(dolphin, this),
+					new StartDeccelerationAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 				im.associateAction(
 					c,
 					Component.Identifier.Key.A,
-					new RotateNodeLeftAction(dolphin, this),
+					new TurnLeftAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 				im.associateAction(
 					c,
 					Component.Identifier.Key.D,
-					new RotateNodeRightAction(dolphin, this),
+					new TurnRightAction(this),
+					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Key.Q,
+					new StartDriftingAction(this),
+					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Key.R,
+					new ThrowItemAction(this),
+					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Key.E,
+					new StartDriftingAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 				im.associateAction(
@@ -364,166 +552,81 @@ public class MyGame extends VariableFrameRateGame {
 					new TogglePerspective((GL4RenderSystem) getEngine().getRenderSystem()),
 					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
 				);
+				im.associateAction(
+					c,
+					Component.Identifier.Key.RETURN,
+					new JoinTrackAction(this),
+					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+				);
 			}
 			else if (c.getType() == Controller.Type.GAMEPAD || c.getType() == Controller.Type.STICK) {
 				im.associateAction(
 					c,
-					Component.Identifier.Axis.Y,
-					new MoveNodeForwardBackwardDeviceAction(dolphin, this),
+					Component.Identifier.Button._0,
+					new StartAccelerationAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Button._1,
+					new StartDeccelerationAction(this),
+					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Button._2,
+					new ThrowItemAction(this),
+					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Button._3,
+					new ThrowItemAction(this),
+					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
 				);
 				im.associateAction(
 					c,
 					Component.Identifier.Axis.X,
-					new MoveNodeLeftRightDeviceAction(dolphin, this),
+					new TurnLeftRightAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 				im.associateAction(
 					c,
-					Component.Identifier.Axis.RX,
-					new RotateNodeLeftRightDeviceAction(dolphin, this),
+					Component.Identifier.Button._5,
+					new StartDriftingAction(this),
+					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Button._6,
+					new StartDriftingAction(this),
+					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Axis.Z,
+					new StartDriftingDeviceAction(this),
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 			}
 		}
-	}
-
-	// Create and add planet to scene
-	protected void createPlanet(SceneManager sm, Planet p) throws IOException {
-		Entity planetE = sm.createEntity(p.name(), p.name() + ".obj");
-		planetE.setPrimitive(Primitive.TRIANGLES);
-		
-		SceneNode planetN = sm.getRootSceneNode().createChildSceneNode(planetE.getName() + "Node");
-		planetN.moveForward(p.z());
-		planetN.moveUp(p.y());
-		planetN.moveRight(p.x());
-		planetN.scale(p.scale(), p.scale(), p.scale());
-		planetN.attachObject(planetE);
 	}
 	
 	protected void createGroundPlane(SceneManager sm) throws IOException {
 		Tessellation plane = sm.createTessellation("plane");
 		SceneNode planeN = sm.getRootSceneNode().createChildSceneNode("planeNode");
 		planeN.attachObject(plane);
-		planeN.scale(100, 1, 100);
-		planeN.translate(0f, -1f, 0f);
+		planeN.scale(250, 1, 250);
 
 		plane.getTextureState().setWrapMode(WrapMode.REPEAT_MIRRORED);
-		plane.setTexture(getEngine(), "hexagons.jpeg");
-		plane.setTextureTiling(8);
+		//plane.setTexture(getEngine(), "hexagons.jpeg");
+		//plane.setTextureTiling(16);
+		plane.setTexture(getEngine(), "Track1_texture.png");
+		plane.setTextureTiling(1);
 
 		plane.setHeightMap(getEngine(), "height_map.png");
-		plane.setQuality(7);
-		plane.setMultiplier(4);
-		
-		ManualObject ground = sm.createManualObject("ground");
-		ground.createManualSection("GroundSection");
-		ground.setGpuShaderProgram(sm.getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.RENDERING));
-		ground.setDepthShaderProgram(sm.getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.DEPTH));
-		
-
-		float[] vertices = new float[] {
-	       -250f, -0.1f,  250f,
-	        250f, -0.1f,  250f,
-	       -250f, -0.1f, -250f,
-	       -250f, -0.1f, -250f,
-	        250f, -0.1f,  250f,
-	        250f, -0.1f, -250f,
-		};
-		
-		float[] texcoords = new float[vertices.length];
-		for (int i = 0; i < vertices.length / 18; i++) {
-			texcoords[i * 12    ] = 1.0f;
-			texcoords[i * 12 + 1] = 0.0f;
-			texcoords[i * 12 + 2] = 0.0f;
-			texcoords[i * 12 + 3] = 1.0f;
-			texcoords[i * 12 + 4] = 0.0f;
-			texcoords[i * 12 + 5] = 0.0f;
-			texcoords[i * 12 + 6] = 1.0f;
-			texcoords[i * 12 + 7] = 0.0f;
-			texcoords[i * 12 + 8] = 1.0f;
-			texcoords[i * 12 + 9] = 1.0f;
-			texcoords[i * 12 +10] = 0.0f;
-			texcoords[i * 12 +11] = 1.0f;
-		}
-
-		// Since the shape is a 2D shape, all normals point straight up
-		float[] normals = new float[vertices.length];
-		for (int i = 0; i < vertices.length / 3; i++) {
-			normals[i * 3] = 0.0f;
-			normals[i * 3 + 1] = 1.0f;
-			normals[i * 3 + 2] = 0.0f;
-		}
-
-		int[] indices = new int[vertices.length];
-		for (int i = 0; i < vertices.length; i++) {
-			indices[i] = i;
-		}
-
-		ground.setVertexBuffer(BufferUtil.directFloatBuffer(vertices));
-		ground.setNormalsBuffer(BufferUtil.directFloatBuffer(normals));
-		ground.setTextureCoordBuffer(BufferUtil.directFloatBuffer(texcoords));
-		ground.setIndexBuffer(BufferUtil.directIntBuffer(indices));
-		
-		Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
-		TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		tstate.setTexture(sm.getTextureManager().getAssetByPath("default.png"));
-
-		FrontFaceState faceState = (FrontFaceState) sm.getRenderSystem().createRenderState(RenderState.Type.FRONT_FACE);
-		ZBufferState zstate = (ZBufferState) sm.getRenderSystem().createRenderState(Type.ZBUFFER);
-		
-		ground.setDataSource(DataSource.INDEX_BUFFER);
-		ground.setRenderState(faceState);
-		ground.setRenderState(tstate);
-		ground.setRenderState(zstate);
-		ground.setMaterial(mat);
-
-		SceneNode groundN = sm.getRootSceneNode().createChildSceneNode("groundNode");
-		groundN.attachObject(ground);
-	}
-	
-	// Checks and handles collision between the dolphin and the planets
-	protected void checkCollisions() {
-		SceneNode dolphin = getEngine().getSceneManager().getSceneNode("dolphinNode");
-		for (Planet p : this.planets) {
-			if (!isCloseEnough(p, dolphin.getWorldPosition())) {
-				continue;
-			}
-			else if (!p.beenVisited()) {
-				if (p.name() == "sun") {
-					this.setBannerMsg("The sun is not a planet.");
-					continue;
-				}
-
-				RotationController rc = new RotationController(Vector3f.createUnitVectorY(), 0.1f);
-				rc.addNode(getEngine().getSceneManager().getSceneNode(p.name() + "Node"));
-				getEngine().getSceneManager().addController(rc);
-
-				BungeeController bc = new BungeeController();
-				bc.addNode(getEngine().getSceneManager().getSceneNode(p.name() + "Node"));
-				getEngine().getSceneManager().addController(bc);
-
-				this.score++;
-				p.setBeenVisited(true);
-				if (this.score == 8) {
-					String endGame = "You have visited ALL of the planets! ";
-					this.setBannerMsg(endGame);
-				}
-				else {
-					this.setBannerMsg("You have visited " + p.name() + "!");
-				}
-			}
-			else if (bannerTime < 0 && p.beenVisited()) {
-				this.setBannerMsg("You have already visited " + p.name() + ".");
-			}
-		}
-	}
-	
-	// Check if player is close to a planet
-	protected boolean isCloseEnough(Planet p, Vector3 po) {
-		// 1.949634 is the max radius of the planet mesh
-		double dist = calcDistance(p.x(), p.y(), p.z(), po.x(), po.y(), po.z());
-		return dist < (p.scale() * 1.949634 + 0.5f);
+		plane.setQuality(8);
+		plane.setMultiplier(10);
 	}
 	
 	protected double calcDistance(float x1, float y1, float z1, float x2, float y2, float z2) {
@@ -532,389 +635,6 @@ public class MyGame extends VariableFrameRateGame {
 		float dz = (z1 - z2);
 		return Math.sqrt(dx * dx + dy * dy + dz * dz);
 	}
-	
-	protected class Planet {
-		private String name;
-		private float x, y, z;
-		private float scale;
-		private float rotationSpeed;
-		private boolean beenVisited = false;
- 
-		public Planet(String name, float x, float y, float z, float scale, float rotationSpeed) {
-			this.name = name;
-			this.x = x;
-			this.y = y;
-			this.z = z;
-			this.scale = scale;
-			this.rotationSpeed = rotationSpeed;
-		}
-		
-		public String name( ) {
-			return this.name;
-		}
-		
-		public float x( ) {
-			return this.x;
-		}
-		
-		public float y( ) {
-			return this.y;
-		}
-		
-		public float z( ) {
-			return this.z;
-		}
-		
-		public float scale( ) {
-			return this.scale;
-		}
-		
-		public float rotationSpeed( ) {
-			return this.rotationSpeed;
-		}
-		
-		public Boolean beenVisited() {
-			return this.beenVisited;
-		}
-		
-		public void setBeenVisited(boolean b) {
-			this.beenVisited = b;
-		}
-	}
-	
-	protected SceneNode createManualObject(Engine eng, SceneManager sm, Boolean rev) throws IOException {
-		String nameAppend = rev ? "Reverse" : "";
-		ManualObject rings = sm.createManualObject("Rings" + nameAppend);
-		rings.createManualSection("RingsSection" + nameAppend);
-		rings.setGpuShaderProgram(sm.getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.RENDERING));
-		rings.setDepthShaderProgram(sm.getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.DEPTH));
-		// These points are generated by a script I wrote, not Blender
-		float[] vertices = new float[] {
-			0.000000f,  0.0f, 1.000000f, 0.024534f,  0.0f, 0.499398f, 0.000000f,  0.0f, 0.500000f,
-			0.000000f,  0.0f, 1.000000f, 0.049068f,  0.0f, 0.998795f, 0.024534f,  0.0f, 0.499398f,
-			0.049068f,  0.0f, 0.998795f, 0.049009f,  0.0f, 0.497592f, 0.024534f,  0.0f, 0.499398f,
-			0.049068f,  0.0f, 0.998795f, 0.098017f,  0.0f, 0.995185f, 0.049009f,  0.0f, 0.497592f,
-			0.098017f,  0.0f, 0.995185f, 0.073365f,  0.0f, 0.494588f, 0.049009f,  0.0f, 0.497592f,
-			0.098017f,  0.0f, 0.995185f, 0.146730f,  0.0f, 0.989177f, 0.073365f,  0.0f, 0.494588f,
-			0.146730f,  0.0f, 0.989177f, 0.097545f,  0.0f, 0.490393f, 0.073365f,  0.0f, 0.494588f,
-			0.146730f,  0.0f, 0.989177f, 0.195090f,  0.0f, 0.980785f, 0.097545f,  0.0f, 0.490393f,
-			0.195090f,  0.0f, 0.980785f, 0.121490f,  0.0f, 0.485016f, 0.097545f,  0.0f, 0.490393f,
-			0.195090f,  0.0f, 0.980785f, 0.242980f,  0.0f, 0.970031f, 0.121490f,  0.0f, 0.485016f,
-			0.242980f,  0.0f, 0.970031f, 0.145142f,  0.0f, 0.478470f, 0.121490f,  0.0f, 0.485016f,
-			0.242980f,  0.0f, 0.970031f, 0.290285f,  0.0f, 0.956940f, 0.145142f,  0.0f, 0.478470f,
-			0.290285f,  0.0f, 0.956940f, 0.168445f,  0.0f, 0.470772f, 0.145142f,  0.0f, 0.478470f,
-			0.290285f,  0.0f, 0.956940f, 0.336890f,  0.0f, 0.941544f, 0.168445f,  0.0f, 0.470772f,
-			0.336890f,  0.0f, 0.941544f, 0.191342f,  0.0f, 0.461940f, 0.168445f,  0.0f, 0.470772f,
-			0.336890f,  0.0f, 0.941544f, 0.382683f,  0.0f, 0.923880f, 0.191342f,  0.0f, 0.461940f,
-			0.382683f,  0.0f, 0.923880f, 0.213778f,  0.0f, 0.451995f, 0.191342f,  0.0f, 0.461940f,
-			0.382683f,  0.0f, 0.923880f, 0.427555f,  0.0f, 0.903989f, 0.213778f,  0.0f, 0.451995f,
-			0.427555f,  0.0f, 0.903989f, 0.235698f,  0.0f, 0.440961f, 0.213778f,  0.0f, 0.451995f,
-			0.427555f,  0.0f, 0.903989f, 0.471397f,  0.0f, 0.881921f, 0.235698f,  0.0f, 0.440961f,
-			0.471397f,  0.0f, 0.881921f, 0.257051f,  0.0f, 0.428864f, 0.235698f,  0.0f, 0.440961f,
-			0.471397f,  0.0f, 0.881921f, 0.514103f,  0.0f, 0.857729f, 0.257051f,  0.0f, 0.428864f,
-			0.514103f,  0.0f, 0.857729f, 0.277785f,  0.0f, 0.415735f, 0.257051f,  0.0f, 0.428864f,
-			0.514103f,  0.0f, 0.857729f, 0.555570f,  0.0f, 0.831470f, 0.277785f,  0.0f, 0.415735f,
-			0.555570f,  0.0f, 0.831470f, 0.297850f,  0.0f, 0.401604f, 0.277785f,  0.0f, 0.415735f,
-			0.555570f,  0.0f, 0.831470f, 0.595699f,  0.0f, 0.803208f, 0.297850f,  0.0f, 0.401604f,
-			0.595699f,  0.0f, 0.803208f, 0.317197f,  0.0f, 0.386505f, 0.297850f,  0.0f, 0.401604f,
-			0.595699f,  0.0f, 0.803208f, 0.634393f,  0.0f, 0.773010f, 0.317197f,  0.0f, 0.386505f,
-			0.634393f,  0.0f, 0.773010f, 0.335779f,  0.0f, 0.370476f, 0.317197f,  0.0f, 0.386505f,
-			0.634393f,  0.0f, 0.773010f, 0.671559f,  0.0f, 0.740951f, 0.335779f,  0.0f, 0.370476f,
-			0.671559f,  0.0f, 0.740951f, 0.353553f,  0.0f, 0.353553f, 0.335779f,  0.0f, 0.370476f,
-			0.671559f,  0.0f, 0.740951f, 0.707107f,  0.0f, 0.707107f, 0.353553f,  0.0f, 0.353553f,
-			0.707107f,  0.0f, 0.707107f, 0.370476f,  0.0f, 0.335779f, 0.353553f,  0.0f, 0.353553f,
-			0.707107f,  0.0f, 0.707107f, 0.740951f,  0.0f, 0.671559f, 0.370476f,  0.0f, 0.335779f,
-			0.740951f,  0.0f, 0.671559f, 0.386505f,  0.0f, 0.317197f, 0.370476f,  0.0f, 0.335779f,
-			0.740951f,  0.0f, 0.671559f, 0.773010f,  0.0f, 0.634393f, 0.386505f,  0.0f, 0.317197f,
-			0.773010f,  0.0f, 0.634393f, 0.401604f,  0.0f, 0.297850f, 0.386505f,  0.0f, 0.317197f,
-			0.773010f,  0.0f, 0.634393f, 0.803208f,  0.0f, 0.595699f, 0.401604f,  0.0f, 0.297850f,
-			0.803208f,  0.0f, 0.595699f, 0.415735f,  0.0f, 0.277785f, 0.401604f,  0.0f, 0.297850f,
-			0.803208f,  0.0f, 0.595699f, 0.831470f,  0.0f, 0.555570f, 0.415735f,  0.0f, 0.277785f,
-			0.831470f,  0.0f, 0.555570f, 0.428864f,  0.0f, 0.257051f, 0.415735f,  0.0f, 0.277785f,
-			0.831470f,  0.0f, 0.555570f, 0.857729f,  0.0f, 0.514103f, 0.428864f,  0.0f, 0.257051f,
-			0.857729f,  0.0f, 0.514103f, 0.440961f,  0.0f, 0.235698f, 0.428864f,  0.0f, 0.257051f,
-			0.857729f,  0.0f, 0.514103f, 0.881921f,  0.0f, 0.471397f, 0.440961f,  0.0f, 0.235698f,
-			0.881921f,  0.0f, 0.471397f, 0.451995f,  0.0f, 0.213778f, 0.440961f,  0.0f, 0.235698f,
-			0.881921f,  0.0f, 0.471397f, 0.903989f,  0.0f, 0.427555f, 0.451995f,  0.0f, 0.213778f,
-			0.903989f,  0.0f, 0.427555f, 0.461940f,  0.0f, 0.191342f, 0.451995f,  0.0f, 0.213778f,
-			0.903989f,  0.0f, 0.427555f, 0.923880f,  0.0f, 0.382683f, 0.461940f,  0.0f, 0.191342f,
-			0.923880f,  0.0f, 0.382683f, 0.470772f,  0.0f, 0.168445f, 0.461940f,  0.0f, 0.191342f,
-			0.923880f,  0.0f, 0.382683f, 0.941544f,  0.0f, 0.336890f, 0.470772f,  0.0f, 0.168445f,
-			0.941544f,  0.0f, 0.336890f, 0.478470f,  0.0f, 0.145142f, 0.470772f,  0.0f, 0.168445f,
-			0.941544f,  0.0f, 0.336890f, 0.956940f,  0.0f, 0.290285f, 0.478470f,  0.0f, 0.145142f,
-			0.956940f,  0.0f, 0.290285f, 0.485016f,  0.0f, 0.121490f, 0.478470f,  0.0f, 0.145142f,
-			0.956940f,  0.0f, 0.290285f, 0.970031f,  0.0f, 0.242980f, 0.485016f,  0.0f, 0.121490f,
-			0.970031f,  0.0f, 0.242980f, 0.490393f,  0.0f, 0.097545f, 0.485016f,  0.0f, 0.121490f,
-			0.970031f,  0.0f, 0.242980f, 0.980785f,  0.0f, 0.195090f, 0.490393f,  0.0f, 0.097545f,
-			0.980785f,  0.0f, 0.195090f, 0.494588f,  0.0f, 0.073365f, 0.490393f,  0.0f, 0.097545f,
-			0.980785f,  0.0f, 0.195090f, 0.989177f,  0.0f, 0.146730f, 0.494588f,  0.0f, 0.073365f,
-			0.989177f,  0.0f, 0.146730f, 0.497592f,  0.0f, 0.049009f, 0.494588f,  0.0f, 0.073365f,
-			0.989177f,  0.0f, 0.146730f, 0.995185f,  0.0f, 0.098017f, 0.497592f,  0.0f, 0.049009f,
-			0.995185f,  0.0f, 0.098017f, 0.499398f,  0.0f, 0.024534f, 0.497592f,  0.0f, 0.049009f,
-			0.995185f,  0.0f, 0.098017f, 0.998795f,  0.0f, 0.049068f, 0.499398f,  0.0f, 0.024534f,
-			0.998795f,  0.0f, 0.049068f, 0.500000f,  0.0f, -0.000000f, 0.499398f,  0.0f, 0.024534f,
-			0.998795f,  0.0f, 0.049068f, 1.000000f,  0.0f, -0.000000f, 0.500000f,  0.0f, -0.000000f,
-			1.000000f,  0.0f, -0.000000f, 0.499398f,  0.0f, -0.024534f, 0.500000f,  0.0f, -0.000000f,
-			1.000000f,  0.0f, -0.000000f, 0.998795f,  0.0f, -0.049068f, 0.499398f,  0.0f, -0.024534f,
-			0.998795f,  0.0f, -0.049068f, 0.497592f,  0.0f, -0.049009f, 0.499398f,  0.0f, -0.024534f,
-			0.998795f,  0.0f, -0.049068f, 0.995185f,  0.0f, -0.098017f, 0.497592f,  0.0f, -0.049009f,
-			0.995185f,  0.0f, -0.098017f, 0.494588f,  0.0f, -0.073365f, 0.497592f,  0.0f, -0.049009f,
-			0.995185f,  0.0f, -0.098017f, 0.989177f,  0.0f, -0.146730f, 0.494588f,  0.0f, -0.073365f,
-			0.989177f,  0.0f, -0.146730f, 0.490393f,  0.0f, -0.097545f, 0.494588f,  0.0f, -0.073365f,
-			0.989177f,  0.0f, -0.146730f, 0.980785f,  0.0f, -0.195090f, 0.490393f,  0.0f, -0.097545f,
-			0.980785f,  0.0f, -0.195090f, 0.485016f,  0.0f, -0.121490f, 0.490393f,  0.0f, -0.097545f,
-			0.980785f,  0.0f, -0.195090f, 0.970031f,  0.0f, -0.242980f, 0.485016f,  0.0f, -0.121490f,
-			0.970031f,  0.0f, -0.242980f, 0.478470f,  0.0f, -0.145142f, 0.485016f,  0.0f, -0.121490f,
-			0.970031f,  0.0f, -0.242980f, 0.956940f,  0.0f, -0.290285f, 0.478470f,  0.0f, -0.145142f,
-			0.956940f,  0.0f, -0.290285f, 0.470772f,  0.0f, -0.168445f, 0.478470f,  0.0f, -0.145142f,
-			0.956940f,  0.0f, -0.290285f, 0.941544f,  0.0f, -0.336890f, 0.470772f,  0.0f, -0.168445f,
-			0.941544f,  0.0f, -0.336890f, 0.461940f,  0.0f, -0.191342f, 0.470772f,  0.0f, -0.168445f,
-			0.941544f,  0.0f, -0.336890f, 0.923880f,  0.0f, -0.382683f, 0.461940f,  0.0f, -0.191342f,
-			0.923880f,  0.0f, -0.382683f, 0.451995f,  0.0f, -0.213778f, 0.461940f,  0.0f, -0.191342f,
-			0.923880f,  0.0f, -0.382683f, 0.903989f,  0.0f, -0.427555f, 0.451995f,  0.0f, -0.213778f,
-			0.903989f,  0.0f, -0.427555f, 0.440961f,  0.0f, -0.235698f, 0.451995f,  0.0f, -0.213778f,
-			0.903989f,  0.0f, -0.427555f, 0.881921f,  0.0f, -0.471397f, 0.440961f,  0.0f, -0.235698f,
-			0.881921f,  0.0f, -0.471397f, 0.428864f,  0.0f, -0.257051f, 0.440961f,  0.0f, -0.235698f,
-			0.881921f,  0.0f, -0.471397f, 0.857729f,  0.0f, -0.514103f, 0.428864f,  0.0f, -0.257051f,
-			0.857729f,  0.0f, -0.514103f, 0.415735f,  0.0f, -0.277785f, 0.428864f,  0.0f, -0.257051f,
-			0.857729f,  0.0f, -0.514103f, 0.831470f,  0.0f, -0.555570f, 0.415735f,  0.0f, -0.277785f,
-			0.831470f,  0.0f, -0.555570f, 0.401604f,  0.0f, -0.297850f, 0.415735f,  0.0f, -0.277785f,
-			0.831470f,  0.0f, -0.555570f, 0.803208f,  0.0f, -0.595699f, 0.401604f,  0.0f, -0.297850f,
-			0.803208f,  0.0f, -0.595699f, 0.386505f,  0.0f, -0.317197f, 0.401604f,  0.0f, -0.297850f,
-			0.803208f,  0.0f, -0.595699f, 0.773010f,  0.0f, -0.634393f, 0.386505f,  0.0f, -0.317197f,
-			0.773010f,  0.0f, -0.634393f, 0.370476f,  0.0f, -0.335779f, 0.386505f,  0.0f, -0.317197f,
-			0.773010f,  0.0f, -0.634393f, 0.740951f,  0.0f, -0.671559f, 0.370476f,  0.0f, -0.335779f,
-			0.740951f,  0.0f, -0.671559f, 0.353553f,  0.0f, -0.353553f, 0.370476f,  0.0f, -0.335779f,
-			0.740951f,  0.0f, -0.671559f, 0.707107f,  0.0f, -0.707107f, 0.353553f,  0.0f, -0.353553f,
-			0.707107f,  0.0f, -0.707107f, 0.335779f,  0.0f, -0.370476f, 0.353553f,  0.0f, -0.353553f,
-			0.707107f,  0.0f, -0.707107f, 0.671559f,  0.0f, -0.740951f, 0.335779f,  0.0f, -0.370476f,
-			0.671559f,  0.0f, -0.740951f, 0.317197f,  0.0f, -0.386505f, 0.335779f,  0.0f, -0.370476f,
-			0.671559f,  0.0f, -0.740951f, 0.634393f,  0.0f, -0.773010f, 0.317197f,  0.0f, -0.386505f,
-			0.634393f,  0.0f, -0.773010f, 0.297850f,  0.0f, -0.401604f, 0.317197f,  0.0f, -0.386505f,
-			0.634393f,  0.0f, -0.773010f, 0.595699f,  0.0f, -0.803208f, 0.297850f,  0.0f, -0.401604f,
-			0.595699f,  0.0f, -0.803208f, 0.277785f,  0.0f, -0.415735f, 0.297850f,  0.0f, -0.401604f,
-			0.595699f,  0.0f, -0.803208f, 0.555570f,  0.0f, -0.831470f, 0.277785f,  0.0f, -0.415735f,
-			0.555570f,  0.0f, -0.831470f, 0.257051f,  0.0f, -0.428864f, 0.277785f,  0.0f, -0.415735f,
-			0.555570f,  0.0f, -0.831470f, 0.514103f,  0.0f, -0.857729f, 0.257051f,  0.0f, -0.428864f,
-			0.514103f,  0.0f, -0.857729f, 0.235698f,  0.0f, -0.440961f, 0.257051f,  0.0f, -0.428864f,
-			0.514103f,  0.0f, -0.857729f, 0.471397f,  0.0f, -0.881921f, 0.235698f,  0.0f, -0.440961f,
-			0.471397f,  0.0f, -0.881921f, 0.213778f,  0.0f, -0.451995f, 0.235698f,  0.0f, -0.440961f,
-			0.471397f,  0.0f, -0.881921f, 0.427555f,  0.0f, -0.903989f, 0.213778f,  0.0f, -0.451995f,
-			0.427555f,  0.0f, -0.903989f, 0.191342f,  0.0f, -0.461940f, 0.213778f,  0.0f, -0.451995f,
-			0.427555f,  0.0f, -0.903989f, 0.382683f,  0.0f, -0.923880f, 0.191342f,  0.0f, -0.461940f,
-			0.382683f,  0.0f, -0.923880f, 0.168445f,  0.0f, -0.470772f, 0.191342f,  0.0f, -0.461940f,
-			0.382683f,  0.0f, -0.923880f, 0.336890f,  0.0f, -0.941544f, 0.168445f,  0.0f, -0.470772f,
-			0.336890f,  0.0f, -0.941544f, 0.145142f,  0.0f, -0.478470f, 0.168445f,  0.0f, -0.470772f,
-			0.336890f,  0.0f, -0.941544f, 0.290285f,  0.0f, -0.956940f, 0.145142f,  0.0f, -0.478470f,
-			0.290285f,  0.0f, -0.956940f, 0.121490f,  0.0f, -0.485016f, 0.145142f,  0.0f, -0.478470f,
-			0.290285f,  0.0f, -0.956940f, 0.242980f,  0.0f, -0.970031f, 0.121490f,  0.0f, -0.485016f,
-			0.242980f,  0.0f, -0.970031f, 0.097545f,  0.0f, -0.490393f, 0.121490f,  0.0f, -0.485016f,
-			0.242980f,  0.0f, -0.970031f, 0.195090f,  0.0f, -0.980785f, 0.097545f,  0.0f, -0.490393f,
-			0.195090f,  0.0f, -0.980785f, 0.073365f,  0.0f, -0.494588f, 0.097545f,  0.0f, -0.490393f,
-			0.195090f,  0.0f, -0.980785f, 0.146730f,  0.0f, -0.989177f, 0.073365f,  0.0f, -0.494588f,
-			0.146730f,  0.0f, -0.989177f, 0.049009f,  0.0f, -0.497592f, 0.073365f,  0.0f, -0.494588f,
-			0.146730f,  0.0f, -0.989177f, 0.098017f,  0.0f, -0.995185f, 0.049009f,  0.0f, -0.497592f,
-			0.098017f,  0.0f, -0.995185f, 0.024534f,  0.0f, -0.499398f, 0.049009f,  0.0f, -0.497592f,
-			0.098017f,  0.0f, -0.995185f, 0.049068f,  0.0f, -0.998795f, 0.024534f,  0.0f, -0.499398f,
-			0.049068f,  0.0f, -0.998795f, -0.000000f,  0.0f, -0.500000f, 0.024534f,  0.0f, -0.499398f,
-			0.049068f,  0.0f, -0.998795f, -0.000000f,  0.0f, -1.000000f, -0.000000f,  0.0f, -0.500000f,
-			-0.000000f,  0.0f, -1.000000f, -0.024534f,  0.0f, -0.499398f, -0.000000f,  0.0f, -0.500000f,
-			-0.000000f,  0.0f, -1.000000f, -0.049068f,  0.0f, -0.998795f, -0.024534f,  0.0f, -0.499398f,
-			-0.049068f,  0.0f, -0.998795f, -0.049009f,  0.0f, -0.497592f, -0.024534f,  0.0f, -0.499398f,
-			-0.049068f,  0.0f, -0.998795f, -0.098017f,  0.0f, -0.995185f, -0.049009f,  0.0f, -0.497592f,
-			-0.098017f,  0.0f, -0.995185f, -0.073365f,  0.0f, -0.494588f, -0.049009f,  0.0f, -0.497592f,
-			-0.098017f,  0.0f, -0.995185f, -0.146730f,  0.0f, -0.989177f, -0.073365f,  0.0f, -0.494588f,
-			-0.146730f,  0.0f, -0.989177f, -0.097545f,  0.0f, -0.490393f, -0.073365f,  0.0f, -0.494588f,
-			-0.146730f,  0.0f, -0.989177f, -0.195090f,  0.0f, -0.980785f, -0.097545f,  0.0f, -0.490393f,
-			-0.195090f,  0.0f, -0.980785f, -0.121490f,  0.0f, -0.485016f, -0.097545f,  0.0f, -0.490393f,
-			-0.195090f,  0.0f, -0.980785f, -0.242980f,  0.0f, -0.970031f, -0.121490f,  0.0f, -0.485016f,
-			-0.242980f,  0.0f, -0.970031f, -0.145142f,  0.0f, -0.478470f, -0.121490f,  0.0f, -0.485016f,
-			-0.242980f,  0.0f, -0.970031f, -0.290285f,  0.0f, -0.956940f, -0.145142f,  0.0f, -0.478470f,
-			-0.290285f,  0.0f, -0.956940f, -0.168445f,  0.0f, -0.470772f, -0.145142f,  0.0f, -0.478470f,
-			-0.290285f,  0.0f, -0.956940f, -0.336890f,  0.0f, -0.941544f, -0.168445f,  0.0f, -0.470772f,
-			-0.336890f,  0.0f, -0.941544f, -0.191342f,  0.0f, -0.461940f, -0.168445f,  0.0f, -0.470772f,
-			-0.336890f,  0.0f, -0.941544f, -0.382683f,  0.0f, -0.923880f, -0.191342f,  0.0f, -0.461940f,
-			-0.382683f,  0.0f, -0.923880f, -0.213778f,  0.0f, -0.451995f, -0.191342f,  0.0f, -0.461940f,
-			-0.382683f,  0.0f, -0.923880f, -0.427555f,  0.0f, -0.903989f, -0.213778f,  0.0f, -0.451995f,
-			-0.427555f,  0.0f, -0.903989f, -0.235698f,  0.0f, -0.440961f, -0.213778f,  0.0f, -0.451995f,
-			-0.427555f,  0.0f, -0.903989f, -0.471397f,  0.0f, -0.881921f, -0.235698f,  0.0f, -0.440961f,
-			-0.471397f,  0.0f, -0.881921f, -0.257051f,  0.0f, -0.428864f, -0.235698f,  0.0f, -0.440961f,
-			-0.471397f,  0.0f, -0.881921f, -0.514103f,  0.0f, -0.857729f, -0.257051f,  0.0f, -0.428864f,
-			-0.514103f,  0.0f, -0.857729f, -0.277785f,  0.0f, -0.415735f, -0.257051f,  0.0f, -0.428864f,
-			-0.514103f,  0.0f, -0.857729f, -0.555570f,  0.0f, -0.831470f, -0.277785f,  0.0f, -0.415735f,
-			-0.555570f,  0.0f, -0.831470f, -0.297850f,  0.0f, -0.401604f, -0.277785f,  0.0f, -0.415735f,
-			-0.555570f,  0.0f, -0.831470f, -0.595699f,  0.0f, -0.803208f, -0.297850f,  0.0f, -0.401604f,
-			-0.595699f,  0.0f, -0.803208f, -0.317197f,  0.0f, -0.386505f, -0.297850f,  0.0f, -0.401604f,
-			-0.595699f,  0.0f, -0.803208f, -0.634393f,  0.0f, -0.773010f, -0.317197f,  0.0f, -0.386505f,
-			-0.634393f,  0.0f, -0.773010f, -0.335779f,  0.0f, -0.370476f, -0.317197f,  0.0f, -0.386505f,
-			-0.634393f,  0.0f, -0.773010f, -0.671559f,  0.0f, -0.740951f, -0.335779f,  0.0f, -0.370476f,
-			-0.671559f,  0.0f, -0.740951f, -0.353553f,  0.0f, -0.353553f, -0.335779f,  0.0f, -0.370476f,
-			-0.671559f,  0.0f, -0.740951f, -0.707107f,  0.0f, -0.707107f, -0.353553f,  0.0f, -0.353553f,
-			-0.707107f,  0.0f, -0.707107f, -0.370476f,  0.0f, -0.335779f, -0.353553f,  0.0f, -0.353553f,
-			-0.707107f,  0.0f, -0.707107f, -0.740951f,  0.0f, -0.671559f, -0.370476f,  0.0f, -0.335779f,
-			-0.740951f,  0.0f, -0.671559f, -0.386505f,  0.0f, -0.317197f, -0.370476f,  0.0f, -0.335779f,
-			-0.740951f,  0.0f, -0.671559f, -0.773010f,  0.0f, -0.634393f, -0.386505f,  0.0f, -0.317197f,
-			-0.773010f,  0.0f, -0.634393f, -0.401604f,  0.0f, -0.297850f, -0.386505f,  0.0f, -0.317197f,
-			-0.773010f,  0.0f, -0.634393f, -0.803208f,  0.0f, -0.595699f, -0.401604f,  0.0f, -0.297850f,
-			-0.803208f,  0.0f, -0.595699f, -0.415735f,  0.0f, -0.277785f, -0.401604f,  0.0f, -0.297850f,
-			-0.803208f,  0.0f, -0.595699f, -0.831470f,  0.0f, -0.555570f, -0.415735f,  0.0f, -0.277785f,
-			-0.831470f,  0.0f, -0.555570f, -0.428864f,  0.0f, -0.257051f, -0.415735f,  0.0f, -0.277785f,
-			-0.831470f,  0.0f, -0.555570f, -0.857729f,  0.0f, -0.514103f, -0.428864f,  0.0f, -0.257051f,
-			-0.857729f,  0.0f, -0.514103f, -0.440961f,  0.0f, -0.235698f, -0.428864f,  0.0f, -0.257051f,
-			-0.857729f,  0.0f, -0.514103f, -0.881921f,  0.0f, -0.471397f, -0.440961f,  0.0f, -0.235698f,
-			-0.881921f,  0.0f, -0.471397f, -0.451995f,  0.0f, -0.213778f, -0.440961f,  0.0f, -0.235698f,
-			-0.881921f,  0.0f, -0.471397f, -0.903989f,  0.0f, -0.427555f, -0.451995f,  0.0f, -0.213778f,
-			-0.903989f,  0.0f, -0.427555f, -0.461940f,  0.0f, -0.191342f, -0.451995f,  0.0f, -0.213778f,
-			-0.903989f,  0.0f, -0.427555f, -0.923880f,  0.0f, -0.382683f, -0.461940f,  0.0f, -0.191342f,
-			-0.923880f,  0.0f, -0.382683f, -0.470772f,  0.0f, -0.168445f, -0.461940f,  0.0f, -0.191342f,
-			-0.923880f,  0.0f, -0.382683f, -0.941544f,  0.0f, -0.336890f, -0.470772f,  0.0f, -0.168445f,
-			-0.941544f,  0.0f, -0.336890f, -0.478470f,  0.0f, -0.145142f, -0.470772f,  0.0f, -0.168445f,
-			-0.941544f,  0.0f, -0.336890f, -0.956940f,  0.0f, -0.290285f, -0.478470f,  0.0f, -0.145142f,
-			-0.956940f,  0.0f, -0.290285f, -0.485016f,  0.0f, -0.121490f, -0.478470f,  0.0f, -0.145142f,
-			-0.956940f,  0.0f, -0.290285f, -0.970031f,  0.0f, -0.242980f, -0.485016f,  0.0f, -0.121490f,
-			-0.970031f,  0.0f, -0.242980f, -0.490393f,  0.0f, -0.097545f, -0.485016f,  0.0f, -0.121490f,
-			-0.970031f,  0.0f, -0.242980f, -0.980785f,  0.0f, -0.195090f, -0.490393f,  0.0f, -0.097545f,
-			-0.980785f,  0.0f, -0.195090f, -0.494588f,  0.0f, -0.073365f, -0.490393f,  0.0f, -0.097545f,
-			-0.980785f,  0.0f, -0.195090f, -0.989177f,  0.0f, -0.146730f, -0.494588f,  0.0f, -0.073365f,
-			-0.989177f,  0.0f, -0.146730f, -0.497592f,  0.0f, -0.049009f, -0.494588f,  0.0f, -0.073365f,
-			-0.989177f,  0.0f, -0.146730f, -0.995185f,  0.0f, -0.098017f, -0.497592f,  0.0f, -0.049009f,
-			-0.995185f,  0.0f, -0.098017f, -0.499398f,  0.0f, -0.024534f, -0.497592f,  0.0f, -0.049009f,
-			-0.995185f,  0.0f, -0.098017f, -0.998795f,  0.0f, -0.049068f, -0.499398f,  0.0f, -0.024534f,
-			-0.998795f,  0.0f, -0.049068f, -0.500000f,  0.0f, -0.000000f, -0.499398f,  0.0f, -0.024534f,
-			-0.998795f,  0.0f, -0.049068f, -1.000000f,  0.0f, -0.000000f, -0.500000f,  0.0f, -0.000000f,
-			-1.000000f,  0.0f, -0.000000f, -0.499398f,  0.0f, 0.024534f, -0.500000f,  0.0f, -0.000000f,
-			-1.000000f,  0.0f, -0.000000f, -0.998795f,  0.0f, 0.049068f, -0.499398f,  0.0f, 0.024534f,
-			-0.998795f,  0.0f, 0.049068f, -0.497592f,  0.0f, 0.049009f, -0.499398f,  0.0f, 0.024534f,
-			-0.998795f,  0.0f, 0.049068f, -0.995185f,  0.0f, 0.098017f, -0.497592f,  0.0f, 0.049009f,
-			-0.995185f,  0.0f, 0.098017f, -0.494588f,  0.0f, 0.073365f, -0.497592f,  0.0f, 0.049009f,
-			-0.995185f,  0.0f, 0.098017f, -0.989177f,  0.0f, 0.146730f, -0.494588f,  0.0f, 0.073365f,
-			-0.989177f,  0.0f, 0.146730f, -0.490393f,  0.0f, 0.097545f, -0.494588f,  0.0f, 0.073365f,
-			-0.989177f,  0.0f, 0.146730f, -0.980785f,  0.0f, 0.195090f, -0.490393f,  0.0f, 0.097545f,
-			-0.980785f,  0.0f, 0.195090f, -0.485016f,  0.0f, 0.121490f, -0.490393f,  0.0f, 0.097545f,
-			-0.980785f,  0.0f, 0.195090f, -0.970031f,  0.0f, 0.242980f, -0.485016f,  0.0f, 0.121490f,
-			-0.970031f,  0.0f, 0.242980f, -0.478470f,  0.0f, 0.145142f, -0.485016f,  0.0f, 0.121490f,
-			-0.970031f,  0.0f, 0.242980f, -0.956940f,  0.0f, 0.290285f, -0.478470f,  0.0f, 0.145142f,
-			-0.956940f,  0.0f, 0.290285f, -0.470772f,  0.0f, 0.168445f, -0.478470f,  0.0f, 0.145142f,
-			-0.956940f,  0.0f, 0.290285f, -0.941544f,  0.0f, 0.336890f, -0.470772f,  0.0f, 0.168445f,
-			-0.941544f,  0.0f, 0.336890f, -0.461940f,  0.0f, 0.191342f, -0.470772f,  0.0f, 0.168445f,
-			-0.941544f,  0.0f, 0.336890f, -0.923880f,  0.0f, 0.382683f, -0.461940f,  0.0f, 0.191342f,
-			-0.923880f,  0.0f, 0.382683f, -0.451995f,  0.0f, 0.213778f, -0.461940f,  0.0f, 0.191342f,
-			-0.923880f,  0.0f, 0.382683f, -0.903989f,  0.0f, 0.427555f, -0.451995f,  0.0f, 0.213778f,
-			-0.903989f,  0.0f, 0.427555f, -0.440961f,  0.0f, 0.235698f, -0.451995f,  0.0f, 0.213778f,
-			-0.903989f,  0.0f, 0.427555f, -0.881921f,  0.0f, 0.471397f, -0.440961f,  0.0f, 0.235698f,
-			-0.881921f,  0.0f, 0.471397f, -0.428864f,  0.0f, 0.257051f, -0.440961f,  0.0f, 0.235698f,
-			-0.881921f,  0.0f, 0.471397f, -0.857729f,  0.0f, 0.514103f, -0.428864f,  0.0f, 0.257051f,
-			-0.857729f,  0.0f, 0.514103f, -0.415735f,  0.0f, 0.277785f, -0.428864f,  0.0f, 0.257051f,
-			-0.857729f,  0.0f, 0.514103f, -0.831470f,  0.0f, 0.555570f, -0.415735f,  0.0f, 0.277785f,
-			-0.831470f,  0.0f, 0.555570f, -0.401604f,  0.0f, 0.297850f, -0.415735f,  0.0f, 0.277785f,
-			-0.831470f,  0.0f, 0.555570f, -0.803208f,  0.0f, 0.595699f, -0.401604f,  0.0f, 0.297850f,
-			-0.803208f,  0.0f, 0.595699f, -0.386505f,  0.0f, 0.317197f, -0.401604f,  0.0f, 0.297850f,
-			-0.803208f,  0.0f, 0.595699f, -0.773010f,  0.0f, 0.634393f, -0.386505f,  0.0f, 0.317197f,
-			-0.773010f,  0.0f, 0.634393f, -0.370476f,  0.0f, 0.335779f, -0.386505f,  0.0f, 0.317197f,
-			-0.773010f,  0.0f, 0.634393f, -0.740951f,  0.0f, 0.671559f, -0.370476f,  0.0f, 0.335779f,
-			-0.740951f,  0.0f, 0.671559f, -0.353553f,  0.0f, 0.353553f, -0.370476f,  0.0f, 0.335779f,
-			-0.740951f,  0.0f, 0.671559f, -0.707107f,  0.0f, 0.707107f, -0.353553f,  0.0f, 0.353553f,
-			-0.707107f,  0.0f, 0.707107f, -0.335779f,  0.0f, 0.370476f, -0.353553f,  0.0f, 0.353553f,
-			-0.707107f,  0.0f, 0.707107f, -0.671559f,  0.0f, 0.740951f, -0.335779f,  0.0f, 0.370476f,
-			-0.671559f,  0.0f, 0.740951f, -0.317197f,  0.0f, 0.386505f, -0.335779f,  0.0f, 0.370476f,
-			-0.671559f,  0.0f, 0.740951f, -0.634393f,  0.0f, 0.773010f, -0.317197f,  0.0f, 0.386505f,
-			-0.634393f,  0.0f, 0.773010f, -0.297850f,  0.0f, 0.401604f, -0.317197f,  0.0f, 0.386505f,
-			-0.634393f,  0.0f, 0.773010f, -0.595699f,  0.0f, 0.803208f, -0.297850f,  0.0f, 0.401604f,
-			-0.595699f,  0.0f, 0.803208f, -0.277785f,  0.0f, 0.415735f, -0.297850f,  0.0f, 0.401604f,
-			-0.595699f,  0.0f, 0.803208f, -0.555570f,  0.0f, 0.831470f, -0.277785f,  0.0f, 0.415735f,
-			-0.555570f,  0.0f, 0.831470f, -0.257051f,  0.0f, 0.428864f, -0.277785f,  0.0f, 0.415735f,
-			-0.555570f,  0.0f, 0.831470f, -0.514103f,  0.0f, 0.857729f, -0.257051f,  0.0f, 0.428864f,
-			-0.514103f,  0.0f, 0.857729f, -0.235698f,  0.0f, 0.440961f, -0.257051f,  0.0f, 0.428864f,
-			-0.514103f,  0.0f, 0.857729f, -0.471397f,  0.0f, 0.881921f, -0.235698f,  0.0f, 0.440961f,
-			-0.471397f,  0.0f, 0.881921f, -0.213778f,  0.0f, 0.451995f, -0.235698f,  0.0f, 0.440961f,
-			-0.471397f,  0.0f, 0.881921f, -0.427555f,  0.0f, 0.903989f, -0.213778f,  0.0f, 0.451995f,
-			-0.427555f,  0.0f, 0.903989f, -0.191342f,  0.0f, 0.461940f, -0.213778f,  0.0f, 0.451995f,
-			-0.427555f,  0.0f, 0.903989f, -0.382683f,  0.0f, 0.923880f, -0.191342f,  0.0f, 0.461940f,
-			-0.382683f,  0.0f, 0.923880f, -0.168445f,  0.0f, 0.470772f, -0.191342f,  0.0f, 0.461940f,
-			-0.382683f,  0.0f, 0.923880f, -0.336890f,  0.0f, 0.941544f, -0.168445f,  0.0f, 0.470772f,
-			-0.336890f,  0.0f, 0.941544f, -0.145142f,  0.0f, 0.478470f, -0.168445f,  0.0f, 0.470772f,
-			-0.336890f,  0.0f, 0.941544f, -0.290285f,  0.0f, 0.956940f, -0.145142f,  0.0f, 0.478470f,
-			-0.290285f,  0.0f, 0.956940f, -0.121490f,  0.0f, 0.485016f, -0.145142f,  0.0f, 0.478470f,
-			-0.290285f,  0.0f, 0.956940f, -0.242980f,  0.0f, 0.970031f, -0.121490f,  0.0f, 0.485016f,
-			-0.242980f,  0.0f, 0.970031f, -0.097545f,  0.0f, 0.490393f, -0.121490f,  0.0f, 0.485016f,
-			-0.242980f,  0.0f, 0.970031f, -0.195090f,  0.0f, 0.980785f, -0.097545f,  0.0f, 0.490393f,
-			-0.195090f,  0.0f, 0.980785f, -0.073365f,  0.0f, 0.494588f, -0.097545f,  0.0f, 0.490393f,
-			-0.195090f,  0.0f, 0.980785f, -0.146730f,  0.0f, 0.989177f, -0.073365f,  0.0f, 0.494588f,
-			-0.146730f,  0.0f, 0.989177f, -0.049009f,  0.0f, 0.497592f, -0.073365f,  0.0f, 0.494588f,
-			-0.146730f,  0.0f, 0.989177f, -0.098017f,  0.0f, 0.995185f, -0.049009f,  0.0f, 0.497592f,
-			-0.098017f,  0.0f, 0.995185f, -0.024534f,  0.0f, 0.499398f, -0.049009f,  0.0f, 0.497592f,
-			-0.098017f,  0.0f, 0.995185f, -0.049068f,  0.0f, 0.998795f, -0.024534f,  0.0f, 0.499398f,
-			-0.049068f,  0.0f, 0.998795f, 0.000000f,  0.0f, 0.500000f, -0.024534f,  0.0f, 0.499398f,
-			-0.049068f,  0.0f, 0.998795f, 0.000000f,  0.0f, 1.000000f, 0.000000f,  0.0f, 0.500000f,
-		};
-		// The rings are made up of squares (two triangles)
-		// Each square has the exact same texture coordinates
-		// So texture coordinates can be generated via a loop
-		float[] texcoords = new float[vertices.length];
-		for (int i = 0; i < vertices.length / 18; i++) {
-			texcoords[i * 12    ] = 1.0f;
-			texcoords[i * 12 + 1] = 0.0f;
-			texcoords[i * 12 + 2] = 0.0f;
-			texcoords[i * 12 + 3] = 1.0f;
-			texcoords[i * 12 + 4] = 0.0f;
-			texcoords[i * 12 + 5] = 0.0f;
-			texcoords[i * 12 + 6] = 1.0f;
-			texcoords[i * 12 + 7] = 0.0f;
-			texcoords[i * 12 + 8] = 1.0f;
-			texcoords[i * 12 + 9] = 1.0f;
-			texcoords[i * 12 +10] = 0.0f;
-			texcoords[i * 12 +11] = 1.0f;
-		}
-
-		// Since the shape is a 2D shape, all normals point straight up
-		float[] normals = new float[vertices.length];
-		for (int i = 0; i < vertices.length / 3; i++) {
-			normals[i * 3] = 0.0f;
-			normals[i * 3 + 1] = 1.0f;
-			normals[i * 3 + 2] = 0.0f;
-		}
-
-		int[] indices = new int[vertices.length];
-		for (int i = 0; i < vertices.length; i++) {
-			indices[i] = i;
-		}
-
-		rings.setVertexBuffer(BufferUtil.directFloatBuffer(vertices));
-		rings.setNormalsBuffer(BufferUtil.directFloatBuffer(normals));
-		rings.setTextureCoordBuffer(BufferUtil.directFloatBuffer(texcoords));
-		rings.setIndexBuffer(BufferUtil.directIntBuffer(indices));
-		
-		Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
-		TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		tstate.setTexture(sm.getTextureManager().getAssetByPath("2k_saturn_ring_black.png"));
-
-		FrontFaceState faceState = (FrontFaceState) sm.getRenderSystem().createRenderState(RenderState.Type.FRONT_FACE);
-		if (rev)
-			faceState.setVertexWinding(FrontFaceState.VertexWinding.CLOCKWISE);
-		ZBufferState zstate = (ZBufferState) sm.getRenderSystem().createRenderState(Type.ZBUFFER);
-		
-		rings.setDataSource(DataSource.INDEX_BUFFER);
-		rings.setRenderState(faceState);
-		rings.setRenderState(tstate);
-		rings.setRenderState(zstate);
-		rings.setMaterial(mat);
-		
-
-		Planet saturn = planets[6]; // sloppy style
-		
-		SceneNode ringsN = sm.getSceneNode(saturn.name() + "Node").createChildSceneNode("ringsNode" + nameAppend);
-		ringsN.attachObject(rings);
-
-		final float scaleAmount = 4f;
-		ringsN.scale(scaleAmount, scaleAmount, scaleAmount);
-		return ringsN;
-	}
-	
-	// Set the HUD banner message
-	protected void setBannerMsg(String str) {
-		this.bannerMsg = str;
-		this.bannerTime = 3000;
-	}
 
 	// Setup and add a sky box to the scene
 	private void createSkyBox(Engine engine, SceneManager sm) throws IOException {
@@ -922,12 +642,12 @@ public class MyGame extends VariableFrameRateGame {
 		TextureManager textureMgr = engine.getTextureManager();
 
 		textureMgr.setBaseDirectoryPath(conf.valueOf("assets.skyboxes.path"));
-		Texture front = textureMgr.getAssetByPath("2k_stars_milky_way.jpg");
-		Texture back = textureMgr.getAssetByPath("2k_stars.jpg");
-		Texture left = textureMgr.getAssetByPath("2k_stars.jpg");
-		Texture right = textureMgr.getAssetByPath("2k_stars.jpg");
-		Texture top = textureMgr.getAssetByPath("2k_stars.jpg");
-		Texture bottom = textureMgr.getAssetByPath("2k_stars.jpg");
+		Texture front = textureMgr.getAssetByPath("bluecloud_bk.jpg");
+		Texture back = textureMgr.getAssetByPath("bluecloud_ft.jpg");
+		Texture left = textureMgr.getAssetByPath("bluecloud_lf.jpg");
+		Texture right = textureMgr.getAssetByPath("bluecloud_rt.jpg");
+		Texture top = textureMgr.getAssetByPath("bluecloud_up.jpg");
+		Texture bottom = textureMgr.getAssetByPath("bluecloud_dn.jpg");
 		textureMgr.setBaseDirectoryPath(conf.valueOf("assets.textures.path"));
 
 		SkyBox sb = sm.createSkyBox("SkyBox");
@@ -968,20 +688,12 @@ public class MyGame extends VariableFrameRateGame {
 		return ROTATE_SPEED;
 	}
 
-	public boolean isConnected() {
-		return isConnected;
-	}
-
-	public void setConnected(boolean isConnected) {
-		this.isConnected = isConnected;
-	}
-
 	public Vector3 getPlayerPosition() {
 		return playerNode.getWorldPosition();
 	}
 	
 	public Matrix3 getPlayerRotation() {
-		return playerNode.getWorldRotation();
+		return playerAvatarRotator.getWorldRotation();
 	}
 	
 	public void createGhostAvatar(UUID ghostID, Vector3 ghostPosition) {
@@ -989,8 +701,9 @@ public class MyGame extends VariableFrameRateGame {
 			SceneManager sm = getEngine().getSceneManager();
 			SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode(ghostID.toString());
 			ghostN.setLocalPosition(ghostPosition);
-			Entity dolphinE = sm.createEntity(ghostID.toString(), "dolphinHighPoly.obj");
+			Entity dolphinE = sm.createEntity(ghostID.toString(), "car1.obj");
 			ghostN.attachObject(dolphinE);
+			ghostN.scale(0.3f, 0.3f, 0.3f);
 			gameState.createGhostAvatar(ghostID, ghostPosition);
 		}
 		catch (Exception e) {
@@ -998,7 +711,7 @@ public class MyGame extends VariableFrameRateGame {
 		}
 	}
 	
-	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation) {
+	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward, long time) {
 		try {
 			SceneManager sm = getEngine().getSceneManager();
 			if (!sm.hasSceneNode(ghostID.toString())) {
@@ -1006,37 +719,443 @@ public class MyGame extends VariableFrameRateGame {
 				createGhostAvatar(ghostID, ghostPosition);
 				return;
 			}
-			gameState.updateGhostAvatar(ghostID, ghostPosition, ghostRotation);
+			gameState.updateGhostAvatar(ghostID, ghostPosition, ghostRotation, vForward, time);
 		}
 		catch (RuntimeException e) {
 			e.printStackTrace();
 		}
 	}
 	
-	public void updateGameState() {
+	public void updateGameStateDisplay() {
 		SceneManager sm = getEngine().getSceneManager();
 		for (Entry<UUID, GhostAvatar> entry : gameState.getGhostAvatars().entrySet()) {
 			SceneNode ghostN = sm.getSceneNode(entry.getKey().toString());
 			ghostN.setLocalPosition(entry.getValue().getPos());
+			ghostN.moveUp(0.3f); // CAR_HEIGHT_OFFSET
 			ghostN.setLocalRotation(entry.getValue().getRot());
 		}
+		for (Entry<UUID, Item> entry : gameState.getItems().entrySet()) {
+			SceneNode itemN = sm.getSceneNode(entry.getKey().toString());
+			itemN.setLocalPosition(entry.getValue().getPos());
+			itemN.setLocalRotation(entry.getValue().getRot());
+		}
+		handleInterpolation();
+	}
+	
+
+	private void handleInterpolation() {
+		for (HashMap.Entry<UUID, GhostAvatar> entry : gameState.getGhostAvatars().entrySet()) {
+			UUID id = entry.getKey();
+			
+			SceneNode ghostAvatarN = getEngine().getSceneManager().getSceneNode(id.toString());
+			GhostAvatar ga = entry.getValue();
+			long time = frametime - ga.getLastUpdateTime();
+			if (time > 0) {
+				ghostAvatarN.moveForward(((float) time / 1000) * ga.getVelocityForward());
+			}
+		}
+	}
+	
+	protected float getGroundHeight(float x, float z) {
+		Tessellation plane = getEngine().getSceneManager().getTessellation("plane");
+		return plane.getWorldHeight(x, z);
+	}
+
+	protected boolean getIsSpeedBoost(float x, float z, Vector3 facing, float scale) {
+		Tessellation plane = getEngine().getSceneManager().getTessellation("plane");
+		return (
+			plane.getIsSpeedBoost(x + facing.x() * scale, z + facing.z() * scale) ||
+			plane.getIsSpeedBoost(x, z) ||
+			plane.getIsSpeedBoost(x - facing.x() * scale, z - facing.z() * scale)
+		);
+	}
+
+	public void createItemBox(UUID id, Vector3 pos) {
+		try {
+			SceneManager sm = getEngine().getSceneManager();
+			Entity itemBoxE = sm.createEntity(id.toString(), "itembox.obj");
+			SceneNode itemBoxN = sm.getRootSceneNode().createChildSceneNode(id.toString());
+			SceneNode itemBoxRotator = itemBoxN.createChildSceneNode(itemBoxE.getName() + "Rotator");
+			itemBoxE.setGpuShaderProgram(sm.getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.ITEM_BOX));
+			itemBoxRotator.attachObject(itemBoxE);
+			float height = getGroundHeight(pos.x(), pos.z());
+			itemBoxN.translate(pos.x(), height + pos.y(), pos.z());
+			itemBoxN.scale(0.6f, 0.6f, 0.6f);
+			
+			Entity questionMarkBodyE = sm.createEntity(id.toString() + "questionmarkbody", "questionmarkbody.obj");
+			questionMarkBodyE.setCanReceiveShadows(false);
+			SceneNode questionMarkBodyN = itemBoxN.createChildSceneNode(id.toString() + "questionmarkbody");
+			questionMarkBodyN.attachObject(questionMarkBodyE);
+			questionMarkBodyN.scale(0.5f, 0.5f, 0.5f);
+			questionMarkBodyN.translate(0f, 0.2f, 0f);
+			
+			Entity questionMarkDotE = sm.createEntity(id.toString() + "questionmarkdot", "questionmarkdot.obj");
+			questionMarkDotE.setCanReceiveShadows(false);
+			SceneNode questionMarkDotN = itemBoxN.createChildSceneNode(id.toString() + "questionmarkdot");
+			questionMarkDotN.attachObject(questionMarkDotE);
+			questionMarkDotN.scale(0.5f, 0.5f, 0.5f);
+			questionMarkDotN.translate(0f, -0.8f, 0f);
+	
+			RotationController verticalRotation = new RotationController(Vector3f.createUnitVectorX(), 0.04f);
+			RotationController horizontalRotation = new RotationController(Vector3f.createUnitVectorY(), 0.07f);
+			verticalRotation.addNode(itemBoxRotator);
+			horizontalRotation.addNode(itemBoxRotator);
+			sm.addController(verticalRotation);
+			sm.addController(horizontalRotation);
+			
+			gameState.createItemBox(id, pos);
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void updateItemBox(UUID id, Vector3 pos, int isActive, int isGrowing, long growthTimer) {
+		try {
+			SceneManager sm = getEngine().getSceneManager();
+			if (!sm.hasSceneNode(id.toString())) {
+				System.out.println("Item Box does not exist.  Creating: " + id.toString());
+				createItemBox(id, pos);
+				return;
+			}
+			gameState.updateItemBox(id, pos, isActive, isGrowing, growthTimer);
+		}
+		catch (RuntimeException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	
+	private void updatePlayerItem() {
+		if (!hasItem()) {
+			return;
+		}
+		SceneManager sm = getEngine().getSceneManager();
+		SceneNode itemN = sm.getSceneNode(item.getID().toString());
+		itemN.setLocalPosition(playerNode.getWorldPosition());
+		itemN.setLocalRotation(playerAvatar.getWorldRotation());
+		itemN.moveBackward(1.1f);
+		gameState.updateItem(item.getID(), itemN.getWorldPosition(), itemN.getWorldRotation());
+		if (SHOW_PACKET_MESSAGES) System.out.println("Sending Update Item");
+		clientProtocol.updateItem(
+			item.getID(),
+			itemN.getWorldPosition(),
+			itemN.getWorldRotation(),
+			item.getType()
+		);
 	}
 	
 	public void removeGhostAvatar(UUID ghostID) {
 		try {
 			SceneManager sm = getEngine().getSceneManager();
 			sm.destroySceneNode(ghostID.toString());
+			sm.destroyEntity(ghostID.toString());
 			gameState.getGhostAvatars().remove(ghostID);
 		}
 		catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
+
+	// We just assume client ALWAYS gets this message from the server
+	// If packet is lost, client will never be able to pick up an item again
+	float BANANA_SCALE = 0.4f;
+	public void setPlayerItem(UUID itemID, int itemType) {
+		item = createItem(itemID, itemType);
+	}
+	
+	public Item createItem(UUID itemID, int itemType) {
+		try {
+			SceneManager sm = getEngine().getSceneManager();
+			Entity itemE = sm.createEntity(itemID.toString(), "banana.obj");
+			itemE.setCanReceiveShadows(false);
+			SceneNode itemN = sm.getRootSceneNode().createChildSceneNode(itemID.toString());
+			itemN.scale(BANANA_SCALE, BANANA_SCALE, BANANA_SCALE);
+			itemN.attachObject(itemE);
+			Item newItem = new Item(itemID, ItemType.getType(itemType));
+			gameState.getItems().put(itemID, newItem);
+			ItemGrowthController itemC = new ItemGrowthController();
+			itemC.addNode(itemN);
+			getEngine().getSceneManager().addController(itemC);
+			
+			return newItem;
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+			return null;
+		}
+	}
+
+	public void throwItem() {
+		if (hasItem()) {
+			SceneManager sm = getEngine().getSceneManager();
+			SceneNode itemN = sm.getSceneNode(item.getID().toString());
+			SceneNode itemNParent = (SceneNode) itemN.getParent();
+			Vector3 currentPos = itemN.getWorldPosition();
+			itemNParent.detachChild(itemN);
+			sm.getRootSceneNode().attachChild(itemN);
+			float height = getGroundHeight(currentPos.x(), currentPos.z());
+			itemN.setLocalPosition(currentPos.x(), height, currentPos.z());
+			item = null;
+			// Assume server ALWAYS gets this message.
+			// If packet is lost, client will never be able to pick up another item
+			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Throw Item");
+			clientProtocol.sendThrowItem();
+		}
+	}
+	
+
+	public void handlePlayerHitItem(UUID itemID) {
+		physicsBody.handleCollision();
+	}
+
+	public void removeItem(UUID itemID, Vector3 force) {
+		if (hasItem() && itemID.equals(item.getID())) {
+			item = null;
+		}
+		try {
+			SceneManager sm = getEngine().getSceneManager();
+			SceneNode item = sm.getSceneNode(itemID.toString());
+			if (gameState.getItems().get(itemID).getType().equals(ItemType.BANANA)) {
+				BananaDeathAnimationController bdaC = new BananaDeathAnimationController(
+					this,
+					item,
+					force
+				);
+				bdaC.addNode(item);
+				sm.addController(bdaC);
+			}
+			gameState.getItems().remove(itemID);
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public boolean hasItem() {
+		return item != null;
+	}
 	
     @Override
     public void shutdown() {
     	super.shutdown();
-        clientProtocol.sendByeMessage();
+        if (clientProtocol != null) {
+        	if (SHOW_PACKET_MESSAGES) System.out.println("Sending Bye");
+        	clientProtocol.sendByeMessage();
+        }
     }
 
+	public void updateItem(UUID itemID, Vector3 itemPos, Matrix3 itemRot, int itemType) {
+		try {
+			SceneManager sm = getEngine().getSceneManager();
+			if (!sm.hasSceneNode(itemID.toString())) {
+				System.out.println("Item does not exist.  Creating: " + itemID.toString());
+				createItem(itemID, itemType);
+				return;
+			}
+			gameState.updateItem(itemID, itemPos, itemRot);
+		}
+		catch (RuntimeException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void itemBoxExplosion(Vector3 pos, Vector3 force) {
+		final float PARTICLE_COUNT  = 15;
+		for (int i = 0; i < PARTICLE_COUNT; i++) {
+			Entity particleE = null;
+			try {
+				particleE = getEngine().getSceneManager().createEntity(createID(), "plane.obj");
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			particleE.setCanReceiveShadows(false);
+			SceneNode particleN = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(particleE.getName());
+			float height = getGroundHeight(pos.x(), pos.z());
+			particleN.setLocalPosition(pos.x(), height, pos.z());
+			particleN.attachObject(particleE);
+			ParticleController particleC = new ParticleController(
+				this,
+				particleN,
+				force
+			);
+			particleC.addNode(particleN);
+			getEngine().getSceneManager().addController(particleC);
+			
+			
+			CullingState cullingState = (CullingState) getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.CULLING);
+			cullingState.setCulling(CullingState.Culling.DISABLED);
+			particleE.setRenderState(cullingState);
+			TextureState tstate = (TextureState) getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+			tstate.setTexture(getTextures().getRandomTexture());
+			particleE.setRenderState(tstate);
+			particleE.setGpuShaderProgram(getEngine().getSceneManager().getRenderSystem().getGpuShaderProgram(GpuShaderProgram.Type.TRANSPARENT));
+		}
+	}
+
+	public PreloadTextures getTextures() {
+		return textures;
+	}
+
+	public void setTextures(PreloadTextures textures) {
+		this.textures = textures;
+	}
+	
+	public void startRace(int trackID) {
+		if (clientState.getJoinedTrack() == trackID) {
+			gameState.setRaceState(RaceState.COUNTDOWN);
+		}
+	}
+	
+	public void inputAction() {
+		if (clientState.isRaceFinished()) {
+			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Finish Track");
+			clientProtocol.finishTrack(clientState.getSelectedTrack());
+			clientState.setJoinedTrack(0);
+			clientState.setRaceFinished(false);
+			setCameraToSky();
+		}
+		else if (!clientState.hasTrack()) {
+			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Join Track");
+			clientProtocol.joinTrack(clientState.getSelectedTrack());
+		}
+		else {
+			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Start Track");
+			clientProtocol.sendStartMessage(clientState.getJoinedTrack());
+		}
+	}
+
+	public ClientState getClientState() {
+		return clientState;
+	}
+	
+	public boolean isRacing() {
+		return gameState.getRaceState() == RaceState.RACING;
+	}
+	
+	public boolean hasRaceFinished() {
+		return clientState.isRaceFinished();
+	}
+
+	public void updateRaceTime(long raceTime) {
+		if (gameState.getRaceState() == RaceState.RACING ||
+			gameState.getRaceState() == RaceState.COUNTDOWN
+		) {
+			timerGui.update(raceTime);
+		}
+	}
+	
+	protected void finishRace() {
+		gameState.setRaceState(RaceState.FINISH);
+		clientState.setRaceFinished(true);
+		clientProtocol.completedRace(clientState.getSelectedTrack());
+	}
+	
+	
+	public void updateLapInfo() {
+		int newZone = getZone();
+		// System.out.println(currentZone + " -> " + newZone);
+		if (currentZone != newZone && newZone > currentZone) {
+			currentZone = newZone;
+		}
+		else if (currentZone == 3 && newZone == 0) {
+			if (raceLap < 3) {
+				raceLap += 1;
+			}
+			else {
+				finishRace();
+			}
+			currentZone = newZone;
+		}
+	}
+
+	protected int getZone() {
+		if (hasRaceFinished()) {
+			return currentZone;
+		}
+		Vector3 coord = playerNode.getWorldPosition();
+		final float ZONE_3_Z = -85.36f;
+		final float ZONE_1_Z = 50f;
+		final float ZONE_0_2_X = -35.8f;
+		switch (currentZone) {
+		case 0:
+			if (coord.z() > ZONE_1_Z) {
+				return 1;
+			}
+			return 0;
+		case 1:
+			if (coord.z() < ZONE_1_Z && coord.x() > ZONE_0_2_X) {
+				return 2;
+			}
+			return 1;
+		case 2:
+			if (coord.z() < ZONE_3_Z) {
+				return 3;
+			}
+			return 2;
+		case 3:
+			if (coord.z() > ZONE_3_Z && coord.x() < ZONE_0_2_X) {
+				return 0;
+			}
+			return 3;
+		}
+		return -1;
+	}
+
+	public GameState getGameState() {
+		return gameState;
+	}
+
+	public void setStartingPosition(int position) {
+		Vector3 startingPos = Track1.getPosition(position);
+		startingPos = Vector3f.createFrom(
+			startingPos.x(),
+			getGroundHeight(startingPos.x(), startingPos.z()),
+			startingPos.z()
+		);
+		physicsBody.setPosition(startingPos);
+		playerNode.setLocalPosition(
+			startingPos
+		);
+	}
+	
+	public PhysicsBody getPhysicsBody() {
+		return physicsBody;
+	}
+	
+	public boolean isRacingInputDisabled() {
+		if (!(gameState.getRaceState() == RaceState.RACING)) {
+			return true;
+		}
+		if (physicsBody.isSpinning()) {
+			return true;
+		}
+		return false;
+	}
+	
+	public Item getItem() {
+		return item;
+	}
+	
+	public void updateRaceState() {
+		switch (gameState.getRaceState()) {
+		case COUNTDOWN:
+			if (gameState.getElapsedRaceTime() > 0) {
+				gameState.setRaceState(RaceState.RACING);
+			}
+			break;
+		default:
+			break;
+		}
+	}
+
+	public void joinTrack(int trackID) {
+		clientState.setJoinedTrack(trackID);
+		gameState.setRaceState(RaceState.COUNTDOWN);
+	}
+
+	public void updateAvatar(Vector3 ghostPosition, Matrix3 ghostRotation) {
+		physicsBody.setPosition(ghostPosition);
+		physicsBody.setRotation(ghostRotation);
+	}
 }

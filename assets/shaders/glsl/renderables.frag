@@ -14,6 +14,7 @@ in vertex_t
 // stage output(s)
 out vec4 fragment;
 
+uniform bool canReceiveShadows;
 // uniform(s)/structure(s)
 uniform struct ambient_light_t
 {
@@ -170,11 +171,10 @@ float ShadowCalculation(vec4 fragPosLightSpace)
     // get depth of current fragment from light's perspective
     float currentDepth = projCoords.z;
     // check whether current frag pos is in shadow
-	float bias = 0.003;
-	
+	float bias = 0.001;
 	float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-	int taps = 3;
+	int taps = 2;
     for(int x = -taps; x <= taps; ++x)
     {
         for(int y = -taps; y <= taps; ++y)
@@ -184,8 +184,20 @@ float ShadowCalculation(vec4 fragPosLightSpace)
         }    
     }
     shadow /= ((taps * 2 + 1) * (taps * 2 + 1));
-	if(projCoords.z > 1.0)
+	if(projCoords.z > 1.0) {
 		shadow = 0.0;
+	}
+	else {
+		projCoords = (projCoords - 0.5) * 2;
+		float x = projCoords.x;
+		float y = projCoords.y;
+		float distance = max(abs(x), abs(y));
+		distance = distance - 0.9f;
+		distance = clamp(distance, 0f, 1f);
+		distance = distance * 10f;
+		distance = clamp(distance, 0f, 1f);
+		shadow = shadow * (1f - distance);
+	}
 
     return shadow;
 }
@@ -197,13 +209,12 @@ void main()
 {
     // account for global ambient light regardless of
     // whether local lights exist or not
-	float shadow = ShadowCalculation(fs_in.FragPosLightSpace);
+	float shadow = canReceiveShadows ? ShadowCalculation(fs_in.FragPosLightSpace) : 0f;
     vec4 effect = material.ambient * global_light.intensity;
 	vec4 special = vec4(0f, 0f, 0f, 0f);
     for (int i = 0; i < ssbo.lights.length(); ++i)
         special += get_light_effect(ssbo.lights[i], material);
 	effect += ((1 - shadow) * special);
     fragment = texture2D(texture_sampler, fs_in.vertex_texcoord) * effect;
-	//float depth = LinearizeDepth(gl_FragCoord.z) / 100f;
 	//fragment = vec4(vec3(depth), 1.0);
 }

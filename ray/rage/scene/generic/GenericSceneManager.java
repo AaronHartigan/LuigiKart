@@ -595,9 +595,16 @@ final class GenericSceneManager implements SceneManager {
 
     @Override
     public void updateControllers(float time) {
-        for (Node.Controller nc : nodeControllers)
-            if (nc.isEnabled())
+    	Iterator<Node.Controller> iter = nodeControllers.iterator();
+    	while (iter.hasNext()) {
+    		Node.Controller nc = iter.next();
+    		if (nc.isEnabled()) {
                 nc.update(time);
+        		if (nc.isShouldDelete()) {
+        			iter.remove();
+            	}
+            }
+    	}
     }
 
     @Override

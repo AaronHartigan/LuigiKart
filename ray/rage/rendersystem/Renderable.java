@@ -387,4 +387,6 @@ public interface Renderable extends Disposable {
      */
     Matrix4 getWorldTransformMatrix();
 
+	void setCanReceiveShadows(boolean b);
+	boolean getCanReceiveShadows();
 }

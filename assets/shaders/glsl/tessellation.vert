@@ -8,12 +8,12 @@ layout (binding = 5) uniform sampler2D shadowMap;
 
 // Stage output
 out vec2 tc;
-out vec4 FragPosLightSpace;
 
 // Uniforms
 uniform mat4 mat4_norm;
 uniform mat4 mat4_mvp;
 uniform mat4 mat4_mv;
+uniform mat4 mat4_m;
 uniform mat4 mat4_p;
 uniform float multiplier;
 uniform float subdivisions;
@@ -59,6 +59,4 @@ void main(void)
 	
 	// vertex locations range from -0.5 to +0.5
 	gl_Position = vec4(tc.x-0.5, 0.0, (1.0-tc.y)-0.5, 1.0);
-
-	FragPosLightSpace = matrix.lightSpaceMatrix * gl_Position;
 }

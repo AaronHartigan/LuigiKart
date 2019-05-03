@@ -31,6 +31,7 @@ public abstract class AbstractController implements Node.Controller {
 
     protected List<Node> controlledNodesList = new ArrayList<>();
     private boolean      isEnabled           = true;
+    private boolean      shouldDelete        = false;
 
     @Override
     public void addNode(Node node) {
@@ -106,5 +107,13 @@ public abstract class AbstractController implements Node.Controller {
         controlledNodesList.clear();
         controlledNodesList = null;
     }
+
+	public boolean isShouldDelete() {
+		return shouldDelete;
+	}
+
+	public void setShouldDelete(boolean shouldDelete) {
+		this.shouldDelete = shouldDelete;
+	}
 
 }

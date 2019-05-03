@@ -7,8 +7,6 @@ layout (binding = 2) uniform sampler2D tex_normal;
 
 // Stage input and outputs
 in vec2 tc[];
-in vec4 FragPosLightSpace[];
-out vec4 FragPosLightSpace_out1[];
 out vec2 tcs_out[];
 layout (vertices = 4) out;
 
@@ -16,6 +14,7 @@ layout (vertices = 4) out;
 uniform mat4 mat4_norm;
 uniform mat4 mat4_mvp;
 uniform mat4 mat4_mv;
+uniform mat4 mat4_m;
 uniform mat4 mat4_p;
 uniform float multiplier;
 uniform float subdivisions;
@@ -38,6 +37,11 @@ uniform struct material_t
     vec4  emissive;
     float shininess;
 } material;
+
+uniform struct matrix_t {
+	mat4 lightSpaceMatrix;
+} matrix;
+
 
 
 /**
@@ -69,5 +73,4 @@ void main(void)
 	
 	tcs_out[gl_InvocationID] = tc[gl_InvocationID];
 	gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
-	FragPosLightSpace_out1[gl_InvocationID] = FragPosLightSpace[gl_InvocationID];
 }

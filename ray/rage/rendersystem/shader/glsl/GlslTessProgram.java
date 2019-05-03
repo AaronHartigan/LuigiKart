@@ -84,7 +84,9 @@ class GlslTessProgram extends AbstractGlslProgram {
 	private GlslProgramUniformMat4 mat4_norm;
 	private GlslProgramUniformMat4 mat4_mvp;
 	private GlslProgramUniformMat4 mat4_mv;
+	private GlslProgramUniformMat4 mat4_m;
 	private GlslProgramUniformMat4 mat4_p;
+	private GlslProgramUniformMat4 lightSpaceMatrix;
 	
 	private GlslProgramUniformVec4  materialAmbient;
     private GlslProgramUniformVec4  materialDiffuse;
@@ -150,11 +152,14 @@ class GlslTessProgram extends AbstractGlslProgram {
         final Matrix4 model = r.getWorldTransformMatrix();
         final Matrix4 view  = ctx.getViewMatrix();
         final Matrix4 proj  = ctx.getProjectionMatrix();
+        final Matrix4 lightSpace = ctx.getLightSpaceMatrix();
         
         mat4_norm.set(         ((view.mult(model)).inverse()).transpose());
         mat4_mvp.set ( proj.mult(view.mult(model))                       );
         mat4_mv.set  (           view.mult(model)                        );
+        mat4_m.set   (                     model                         );
         mat4_p.set   ( proj                                              );
+        lightSpaceMatrix.set(lightSpace);
 
         setLocalLights(ctx.getLightsList(), view);
         setGlobalAmbientLight(ctx.getAmbientLight());
@@ -268,7 +273,9 @@ class GlslTessProgram extends AbstractGlslProgram {
         mat4_norm = new GlslProgramUniformMat4(this, canvas, "mat4_norm");
         mat4_mvp  = new GlslProgramUniformMat4(this, canvas, "mat4_mvp" );
         mat4_mv   = new GlslProgramUniformMat4(this, canvas, "mat4_mv"  );
+        mat4_m    = new GlslProgramUniformMat4(this, canvas, "mat4_m"   );
         mat4_p    = new GlslProgramUniformMat4(this, canvas, "mat4_p"   );
+        lightSpaceMatrix = new GlslProgramUniformMat4(this, canvas, "matrix.lightSpaceMatrix");
         
         materialAmbient = new GlslProgramUniformVec4(this, canvas, "material.ambient");
         materialDiffuse = new GlslProgramUniformVec4(this, canvas, "material.diffuse");
@@ -305,7 +312,9 @@ class GlslTessProgram extends AbstractGlslProgram {
         	mat4_norm.notifyDispose(); mat4_norm = null;
         	mat4_mvp.notifyDispose();  mat4_mvp  = null;
         	mat4_mv.notifyDispose();   mat4_mv   = null;
+        	mat4_m.notifyDispose();    mat4_m    = null;
         	mat4_p.notifyDispose();    mat4_p    = null;
+        	lightSpaceMatrix.notifyDispose(); lightSpaceMatrix = null;
         	
         	materialAmbient.notifyDispose();   materialAmbient   = null;
             materialDiffuse.notifyDispose();   materialDiffuse   = null;

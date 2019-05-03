@@ -42,6 +42,8 @@ public final class GlslProgramFactory implements GpuShaderProgramFactory {
 	        	return new GlslDepthProgram((GLCanvas) rs.getCanvas());
             case RENDERING:
                 return new GlslRenderingProgram((GLCanvas) rs.getCanvas());
+            case ITEM_BOX:
+                return new GlslItemBoxProgram((GLCanvas) rs.getCanvas());
             case SKYBOX:
                 return new GlslSkyBoxProgram((GLCanvas) rs.getCanvas());
             case SKELETAL_RENDERING:
@@ -50,6 +52,12 @@ public final class GlslProgramFactory implements GpuShaderProgramFactory {
                 return new GlslTessProgram((GLCanvas) rs.getCanvas());
             case FRAMEBUFFER:
             	return new GlslFramebufferProgram((GLCanvas) rs.getCanvas());
+            case TRANSPARENT:
+            	return new GlslTransparentProgram((GLCanvas) rs.getCanvas());
+            case GUI:
+            	return new GlslGUIProgram((GLCanvas) rs.getCanvas());
+            case GUI_BACKGROUND:
+            	return new GlslGUIBackgroundProgram((GLCanvas) rs.getCanvas());
             default:
                 throw new UnsupportedOperationException(type + " not implemented");
         }

@@ -9,8 +9,15 @@ import ray.rml.Vector3f;
 
 public class GhostAvatar {
 	private UUID id;
+	private Item item = null;
+	private float velocityForward = 0f;
 	private Vector3 pos = Vector3f.createFrom(0f, 0f, 0f);
 	private Matrix3 rot = Matrix3f.createIdentityMatrix();
+	private boolean shouldRemove = false;
+	private boolean isNPC = false;
+	private PhysicsBody physicsBody = null;
+	private long lastUpdateTime = 0;
+	private int waypoint = -1;
 
 	public GhostAvatar(UUID id) {
 		this.setId(id);
@@ -38,5 +45,69 @@ public class GhostAvatar {
 
 	public void setRot(Matrix3 rot) {
 		this.rot = rot;
+	}
+	
+	public boolean hasItem() {
+		return (item != null);
+	}
+	
+	public void removeItem() {
+		item = null;
+	}
+
+	public Item getItem() {
+		return item;
+	}
+	
+	public void setItem(Item item) {
+		this.item = item;
+	}
+
+	public float getVelocityForward() {
+		return velocityForward;
+	}
+
+	public void setVelocityForward(float velocityForward) {
+		this.velocityForward = velocityForward;
+	}
+
+	public boolean isShouldRemove() {
+		return shouldRemove;
+	}
+
+	public void setShouldRemove(boolean shouldRemove) {
+		this.shouldRemove = shouldRemove;
+	}
+
+	public boolean isNPC() {
+		return isNPC;
+	}
+
+	public void setNPC(boolean isNPC) {
+		this.isNPC = isNPC;
+	}
+
+	public PhysicsBody getPhysicsBody() {
+		return physicsBody;
+	}
+
+	public void setPhysicsBody(PhysicsBody physicsBody) {
+		this.physicsBody = physicsBody;
+	}
+
+	public long getLastUpdateTime() {
+		return lastUpdateTime;
+	}
+
+	public void setLastUpdateTime(long lastUpdateTime) {
+		this.lastUpdateTime = lastUpdateTime;
+	}
+
+	public int getWaypoint() {
+		return waypoint;
+	}
+
+	public void setWaypoint(int waypoint) {
+		this.waypoint = waypoint;
 	}
 }

@@ -5,7 +5,6 @@ import net.java.games.input.Event;
 import ray.input.action.AbstractInputAction;
 import ray.rage.scene.*;
 import ray.rml.Degreef;
-
 public class RotateNodeRightAction extends AbstractInputAction
 {
 	private SceneNode n;

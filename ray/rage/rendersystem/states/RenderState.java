@@ -59,7 +59,9 @@ public interface RenderState extends Disposable {
          * A {@link RenderState render-state} to identify front-faces and
          * perform back-face culling.
          */
-        FRONT_FACE
+        FRONT_FACE,
+        
+        CULLING
     }
 
     /**

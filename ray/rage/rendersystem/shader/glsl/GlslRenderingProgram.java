@@ -75,13 +75,10 @@ class GlslRenderingProgram extends AbstractGlslProgram {
     private GlslProgramUniformVec4         materialEmissive;
     private GlslProgramUniformFloat        materialShininess;
     
+    private GlslProgramUniformBool         canReceiveShadows;
+    
     private GlslProgramUniformVec3         lightPos;
     private GlslProgramUniformVec3         viewPos;
-
-    
-//    private GlslProgramUniformInt	numberOfLights;   // SCOTT
-    
-//    private int maxLights = 10;	// SCOTT
 
     public GlslRenderingProgram(GLCanvas canvas) {
         super(canvas);
@@ -103,13 +100,11 @@ class GlslRenderingProgram extends AbstractGlslProgram {
         final Matrix4 proj = ctx.getProjectionMatrix();
         final Matrix4 lightSpace = ctx.getLightSpaceMatrix();
 
+        canReceiveShadows.set(ctx.getCanReceiveShadows());
         setRenderable(r);
         setGlobalAmbientLight(ctx.getAmbientLight());
         setLocalLights(ctx.getLightsList(), view);
         setMaterial(r.getMaterial());
-        //setViewPos(ctx.getViewPos());
-        //setLightPos(ctx.getLightPos());
-    //    setMaterial(r.getMaterial(), ctx.getLightsList().size());	// SCOTT
         setMatrixUniforms(model, view, proj, lightSpace);
     }
 
@@ -158,7 +153,6 @@ class GlslRenderingProgram extends AbstractGlslProgram {
 
 // SCOTT
         FloatBuffer ssbo = BufferUtil.directFloatBuffer(shaderStructFieldCount * lights.size());
-//        FloatBuffer ssbo = BufferUtil.directFloatBuffer(shaderStructFieldCount * 10);
         for (Light l : lights) {
             ssbo.put(l.getAmbient().getColorComponents(null));
             ssbo.put(1f);
@@ -259,6 +253,8 @@ class GlslRenderingProgram extends AbstractGlslProgram {
         materialEmissive = new GlslProgramUniformVec4(this, canvas, "material.emissive");
         materialShininess = new GlslProgramUniformFloat(this, canvas, "material.shininess");
         
+        canReceiveShadows = new GlslProgramUniformBool(this, canvas, "canReceiveShadows");
+        
    //     numberOfLights = new GlslProgramUniformInt(this, canvas, "material.numLights");  // SCOTT
 
         modelMatrix = new GlslProgramUniformMat4(this, canvas, "matrix.model");
@@ -289,6 +285,8 @@ class GlslRenderingProgram extends AbstractGlslProgram {
             materialSpecular.notifyDispose();
             materialEmissive.notifyDispose();
             materialShininess.notifyDispose();
+            
+            canReceiveShadows.notifyDispose();
 
             modelMatrix.notifyDispose();
             viewMatrix.notifyDispose();
@@ -312,6 +310,8 @@ class GlslRenderingProgram extends AbstractGlslProgram {
             materialSpecular = null;
             materialEmissive = null;
             materialShininess = null;
+            
+            canReceiveShadows = null;
 
             modelMatrix = null;
             viewMatrix = null;

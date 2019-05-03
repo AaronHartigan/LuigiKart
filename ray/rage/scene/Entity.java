@@ -187,4 +187,5 @@ public interface Entity extends SceneObject {
 
 	void setDepthShaderProgram(GpuShaderProgram gpuShaderProgram);
 
+	void setCanReceiveShadows(boolean b);
 }

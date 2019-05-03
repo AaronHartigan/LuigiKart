@@ -527,4 +527,10 @@ final class GenericSkeletalEntity extends AbstractGenericSceneObject implements 
             se.setDepthShaderProgram(prog);
     }
 
+	@Override
+	public void setCanReceiveShadows(boolean canReceiveShadows) {
+		for (SubEntity se : subEntityList)
+            se.setCanReceiveShadows(canReceiveShadows);
+	}
+
 }

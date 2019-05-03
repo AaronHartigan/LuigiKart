@@ -423,6 +423,87 @@ final class GenericTessellation extends AbstractGenericSceneObject implements Te
 		return getAverageHeight(targetX, targetZ);
 	}
 	
+	public boolean getIsSpeedBoost(float globalX, float globalZ) {
+		if (!body.hasHeightMap()) {
+			return false;
+		}
+		// Determine true X-Z coordinate that intersects the tessellated plane
+		Matrix4 parentTransform = this.getParentNode().getWorldTransform();
+		Vector3 parentTranslate = this.getParentNode().getWorldPosition();
+		Matrix4 translateGlobal  = Matrix4f.createIdentityMatrix().translate(globalX-parentTranslate.x(), 0f, parentTranslate.z()-globalZ);
+
+		// Drop the Translation details, and concatenate the rotation and scaling details.
+		Matrix3 dropped = parentTransform.toMatrix3();
+		parentTransform = Matrix4f.createFrom(dropped);
+		translateGlobal = parentTransform.mult(translateGlobal);
+		Vector3 trueXZ  = translateGlobal.column(3).toVector3();
+		
+		// Get size bounds
+		Vector3 scale = this.getParentNode().getWorldScale();
+		float targetX;
+		float targetZ;
+		
+		// Normalize the target values
+		if (scale.x() >= 0) { targetX = ((trueXZ.x() /          scale.x())  + (0.5f * scale.x())) /          scale.x() ; }
+		else                { targetX = ((trueXZ.x() / Math.abs(scale.x())) - (0.5f * scale.x())) / Math.abs(scale.x()); }
+		
+		if (scale.z() >= 0) { targetZ = ((trueXZ.z() /          scale.z())  + (0.5f * scale.z())) /          scale.z() ; }
+		else                { targetZ = ((trueXZ.z() / Math.abs(scale.z())) - (0.5f * scale.z())) / Math.abs(scale.z()); }
+		
+		switch (body.getQualityLevel()) {
+		case 5:
+			targetZ += 0.030f;
+			break;
+		case 6:
+			targetZ += 0.020f;
+			break;
+		case 7:
+			targetZ += 0.010f;
+			break;
+		case 8:
+			targetZ += 0.006f;
+			break;
+		case 9:
+			targetZ += 0.004f;
+			break;
+		case 10:
+			targetZ += 0.002f;
+			break;
+		case 11:
+			targetZ += 0.001f;
+			break;
+		default: // 12+
+			break;
+		}
+		
+		// Normalize parameters (and constrain invalid parameters between 0.0 and 1.0)
+		while (targetX < 0.0f) {targetX += 1.0f;}
+		while (targetX > 1.0f) {targetX -= 1.0f;}
+		while (targetZ < 0.0f) {targetZ += 1.0f;}
+		while (targetZ > 1.0f) {targetZ -= 1.0f;}
+		// If the heightmap is tiled...
+		if (tstate.getWrapMode() == WrapMode.REPEAT || tstate.getWrapMode() == WrapMode.REPEAT_MIRRORED) {
+			targetX *= this.getHeightMapTilingX();
+			targetZ *= this.getHeightMapTilingZ();
+			while (targetX < 0.0f) targetX += 1.0f;
+			while (targetX > 1.0f) targetX %= 1.0f;
+			while (targetZ < 0.0f) targetZ += 1.0f;
+			while (targetZ > 1.0f) targetZ %= 1.0f;
+		}
+
+		// Obtain the buffered image
+		BufferedImage img = map_height.getImage();
+		
+		// Estimate the closest HeightMap pixel
+		float xPixel  = (img.getWidth()  - 1) * targetX;
+		float zPixel  = (img.getHeight() - 1) * targetZ;
+		int   xPixelT = (int) xPixel;
+		int   zPixelT = (int) zPixel;
+
+		float blue = new Color(img.getRGB(xPixelT, zPixelT)).getBlue() / 255.0f;
+		return (blue > 0.9f);
+	}
+	
     @Override
     public float getAverageHeight(float xPercent, float zPercent) {
     	

@@ -180,5 +180,10 @@ final class GenericManualObject extends AbstractGenericSceneObject implements Ma
 
         super.notifyDispose();
     }
-
+    
+    @Override
+    public void setCanReceiveShadows(Boolean setCanReceiveShadows) {
+        for (ManualObjectSection sec : sectionMap.values())
+            sec.setCanReceiveShadows(setCanReceiveShadows);
+    }
 }

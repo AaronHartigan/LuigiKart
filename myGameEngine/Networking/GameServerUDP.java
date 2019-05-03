@@ -5,27 +5,51 @@ import java.net.InetAddress;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.UUID;
 
 import a3.GameState;
 import a3.GhostAvatar;
+import a3.Item;
+import a3.ItemBox;
+import a3.ItemType;
+import a3.PhysicsBody;
+import a3.RaceState;
+import a3.Track1;
 import ray.networking.server.GameConnectionServer;
 import ray.networking.server.IClientInfo;
 import ray.rml.Matrix3f;
+import ray.rml.Vector2;
+import ray.rml.Vector2f;
+import ray.rml.Vector3;
 import ray.rml.Vector3f;
+import ray.rml.Vector4;
+import ray.rml.Vector4f;
 
 public class GameServerUDP extends GameConnectionServer<UUID> {
 	private GameState gameState = null;
+	private ServerState serverState = new ServerState();
+	private long gameTimer = System.currentTimeMillis();
+	private long elapsedTime = 0;
+	private int currentTrack = -1;
 	private long TICK_RATE = 60;
+	private int MAX_PLAYERS_PER_TRACK = 8;
+	private boolean shouldInitRace = false;
+	private boolean isRaceInited = false;
 
 	public GameServerUDP(int localPort, ProtocolType protocolType, GameState gameState) throws IOException {
 		super(localPort, protocolType);
 		this.gameState = gameState;
-		try {
-			sendPackets();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+		initTrack(1);
+		TimerTask updateServer = new TimerTask() {
+			public void run() {
+				sendPackets();
+			}
+		};
+		Timer timer = new Timer("Timer");
+	    long period = 1000 / TICK_RATE;
+	    timer.schedule(updateServer, 0, period);
 	}
 	
 	@Override
@@ -54,6 +78,9 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			UUID clientID = UUID.fromString(messageTokens[1]);
 			String[] pos = { messageTokens[2], messageTokens[3], messageTokens[4] };
 			gameState.createGhostAvatar(clientID, Vector3f.createFrom(pos));
+			gameState.getGhostAvatars().get(clientID).setPhysicsBody(
+				new PhysicsBody(Vector3f.createFrom(0f, 0f, 0f), Matrix3f.createIdentityMatrix())
+			);
 		}
 		else if (messageTokens[0].compareTo("update") == 0) {
 			UUID clientID = UUID.fromString(messageTokens[1]);
@@ -63,10 +90,13 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 				messageTokens[8], messageTokens[9], messageTokens[10],
 				messageTokens[11], messageTokens[12], messageTokens[13]
 			};
+			float vForward = Float.parseFloat(messageTokens[14]);
 			gameState.updateGhostAvatar(
 				clientID,
 				Vector3f.createFrom(pos),
-				Matrix3f.createFrom(rot)
+				Matrix3f.createFrom(rot),
+				vForward,
+				0
 			);
 		}
 		else if (messageTokens[0].compareTo("bye") == 0) {
@@ -74,30 +104,447 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			gameState.removeGhostAvatar(clientID);
 			sendByeMessages(clientID);
 			removeClient(clientID);
+			serverState.getConnectedPlayers().remove(clientID);
+		}
+		else if (messageTokens[0].compareTo("joinTrack") == 0) {
+			UUID clientID = UUID.fromString(messageTokens[1]);
+			int trackID = Integer.parseInt(messageTokens[2]);
+			if (serverState.getConnectedPlayers().size() < MAX_PLAYERS_PER_TRACK) {
+				serverState.getConnectedPlayers().put(clientID, new PlayerState(clientID, trackID, System.currentTimeMillis()));
+				sendTrackJoinMessages(trackID, clientID, true);
+			}
+			else {
+				sendTrackJoinMessages(trackID, clientID, false);
+			}
+		}
+		else if (messageTokens[0].compareTo("finishTrack") == 0) {
+			UUID clientID = UUID.fromString(messageTokens[1]);
+			gameState.shouldRemoveGhostAvatar(clientID);
+			serverState.getConnectedPlayers().remove(clientID);
+		}
+		else if (messageTokens[0].compareTo("throwItem") == 0) {
+			UUID avatarID = UUID.fromString(messageTokens[1]);
+			GhostAvatar ga = gameState.getGhostAvatars().get(avatarID);
+			ga.removeItem();
+		}
+		else if (messageTokens[0].compareTo("updateItem") == 0) {
+			UUID itemID = UUID.fromString(messageTokens[1]);
+			String[] pos = { messageTokens[2], messageTokens[3], messageTokens[4] };
+			String[] rot = {
+				messageTokens[5], messageTokens[6], messageTokens[7],
+				messageTokens[8], messageTokens[9], messageTokens[10],
+				messageTokens[11], messageTokens[12], messageTokens[13]
+			};
+			gameState.updateItem(
+				itemID,
+				Vector3f.createFrom(pos),
+				Matrix3f.createFrom(rot)
+			);
+		}
+		else if (messageTokens[0].compareTo("startRace") == 0) {
+			UUID clientID = UUID.fromString(messageTokens[1]);
+			int trackID = Integer.parseInt(messageTokens[2]);
+			setShouldInitRace(true);
+			sendStartRace(trackID);
+		}
+		else if (messageTokens[0].compareTo("completedRace") == 0) {
+			UUID clientID = UUID.fromString(messageTokens[1]);
+			GhostAvatar ga = gameState.getGhostAvatars().get(clientID);
+			ga.getPhysicsBody().setPosition(ga.getPos());
+			ga.getPhysicsBody().setRotation(ga.getRot());
+			ga.setNPC(true);
 		}
 	}
 
-	public void sendPackets() throws InterruptedException {
-        while (true) {
-        	long time = System.currentTimeMillis();
-            Iterator<Entry<UUID, GhostAvatar>> it = gameState.getGhostAvatars().entrySet().iterator();
-            while (it.hasNext()) {
-                Map.Entry<UUID, GhostAvatar> pair = (Map.Entry<UUID, GhostAvatar>) it.next();
+	private void generateNPCs() {
+		synchronized (gameState) {
+			int players = gameState.getGhostAvatars().size();
+			for (int i = 0; i < MAX_PLAYERS_PER_TRACK - players; i++) {
+				UUID ghostID = UUID.randomUUID();
+				GhostAvatar npc = new GhostAvatar(ghostID);
+				npc.setNPC(true);
+				npc.setPos(Track1.getPosition(MAX_PLAYERS_PER_TRACK - i));
+				gameState.getGhostAvatars().put(ghostID, npc);
+				gameState.getGhostAvatars().get(ghostID).setPhysicsBody(
+					new PhysicsBody(Track1.getPosition(MAX_PLAYERS_PER_TRACK - i), Matrix3f.createIdentityMatrix())
+				);
+			}
+		}
+	}
+
+	private void updateNPC(GhostAvatar ga, long elapsedTime) {
+		PhysicsBody physicsBody = ga.getPhysicsBody();
+		setInputs(physicsBody, ga);
+		physicsBody.updatePhysics(elapsedTime);
+		ga.setPos(physicsBody.getPosition());
+		ga.setRot(physicsBody.getDirection().mult(physicsBody.getRotation().mult(physicsBody.getSpinRotation())));
+		ga.setVelocityForward(physicsBody.getVForward());
+		int newWaypoint = determineWaypoint(ga);
+		// System.out.println("Waypoint: " + newWaypoint);
+		ga.setWaypoint(newWaypoint);
+		if (ga.hasItem()) {
+			Item item = ga.getItem();
+			item.setRot(physicsBody.getDirection().mult(physicsBody.getRotation()));
+			item.setPos(physicsBody.getPosition());
+			item.setPos(item.getPos().add(item.getRot().column(2).mult(-1.1f)));
+		}
+	}
+
+	private int determineWaypoint(GhostAvatar ga) {
+		int nextWaypoint = (ga.getWaypoint() + 1) % Track1.NUM_WAYPOINTS;
+		Vector4 nextWaypointLine = Track1.getWaypointLine(nextWaypoint);
+		Vector3 pos = ga.getPos();
+		boolean sign = getSign(Vector2f.createFrom(pos.x(), pos.z()), nextWaypointLine);
+		return (sign == getSign(Track1.getPointInWaypoint(nextWaypoint), nextWaypointLine))
+			? nextWaypoint : 
+			ga.getWaypoint();
+	}
+	
+	private boolean getSign(Vector2 a, Vector4 b) {
+		return (
+			(a.x() - b.x()) * (b.w() - b.y())
+			-
+			(a.y() - b.y()) * (b.z() - b.x())
+		) < 0;
+	}
+
+	private void setInputs(PhysicsBody pb, GhostAvatar ga) {
+		pb.resetInputs();
+		if (isRacingInputDisabled(pb)) {
+			return;
+		}
+		else {
+			if (pb.getVForward() < 10f) {
+				pb.setAccelerating(true);	
+			}
+			pb.setDesiredTurn(computeTurn(ga));
+		}
+	}
+	
+	private float computeTurn(GhostAvatar ga) {
+		Vector3 nextWaypoint = Track1.getWaypoint((ga.getWaypoint() + 1) % Track1.NUM_WAYPOINTS);
+		Vector3 pos = ga.getPos();
+		Vector3 heading = pos.add(ga.getRot().column(2));
+		Vector4 playerLine = Vector4f.createFrom(pos.x(), pos.z(), heading.x(), heading.z());
+		float sign =
+			(nextWaypoint.x() - playerLine.x()) * (playerLine.w() - playerLine.y())
+			-
+			(nextWaypoint.z() - playerLine.y()) * (playerLine.z() - playerLine.x())
+		;
+		
+		return (sign > 0) ? 1f : -1f;
+	}
+
+	private boolean isRacingInputDisabled(PhysicsBody pb) {
+		if (gameState.getRaceState() == RaceState.LOBBY) {
+			return true;
+		}
+		if (gameState.getRaceState() == RaceState.COUNTDOWN) {
+			return true;
+		}
+		if (pb.isSpinning()) {
+			return true;
+		}
+		return false;
+	}
+	
+	private void updateRaceState() {
+		switch (gameState.getRaceState()) {
+		case COUNTDOWN:
+			if (gameState.getElapsedRaceTime() >= 0) {
+				gameState.setRaceState(RaceState.RACING);
+			}
+			break;
+		case RACING:
+			if (serverState.getConnectedPlayers().size() <= 0) {
+				gameState.setRaceState(RaceState.FINISH);
+			}
+			break;
+		default:
+			break;
+		}
+	}
+
+	public void sendPackets() {
+		updateRaceState();
+    	if (shouldInitRace) {
+    		initRace();
+    	}
+    	else if (gameState.getRaceState() == RaceState.FINISH) {
+    		resetTrack(1);
+    		return;
+    	}
+    	long newTime = System.currentTimeMillis();
+    	elapsedTime = newTime - gameTimer;
+    	gameTimer = newTime;
+ 
+    	if (gameState.getRaceState() == RaceState.LOBBY) {
+    		return;
+    	}
+
+    	gameState.setElapsedRaceTime(gameState.getElapsedRaceTime() + elapsedTime);
+    	try {
+			String message = new String("raceTime," + gameState.getElapsedRaceTime());
+			sendPacketToAll(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+    	checkCollisions();
+    	updateItemBoxTimers();
+    	try {
+        	Iterator<Entry<UUID, GhostAvatar>> avatarIter = gameState.getGhostAvatars().entrySet().iterator();
+        	String message = new String();
+        	while (avatarIter.hasNext()) {
+                Map.Entry<UUID, GhostAvatar> pair = (Map.Entry<UUID, GhostAvatar>) avatarIter.next();
                 UUID id = pair.getKey();
                 GhostAvatar ga = pair.getValue();
-                // System.out.println("Updating: " + id.toString());
-        		try {
-        			String message = new String("update," + id.toString() + ",");
-        			message += ga.getPos().serialize();
-        			message += "," + ga.getRot().serialize();
-        			forwardPacketToAll(message, id);
-        		}
-        		catch (IOException e) {
-        			e.printStackTrace();
-        		}
+                if (ga.isShouldRemove()) {
+        			sendByeMessages(ga.getId());
+                	avatarIter.remove();
+                	continue;
+                }
+                if (ga.isNPC()) {
+                	updateNPC(ga, elapsedTime);
+                }
+                if (message.length() > 0) {
+                	message += '\0';
+                }
+    			message += "update," + id.toString() + "," + newTime + ",";
+    			message += ga.getPos().serialize();
+    			message += "," + ga.getRot().serialize();
+    			message += "," + ga.getVelocityForward();
         	}
-            Thread.sleep(Math.max(0, (1000 / TICK_RATE) - (System.currentTimeMillis() - time)));
-        }
+        	sendPacketToAll(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+		try {
+			Iterator<Entry<UUID, ItemBox>> itemBoxIter = gameState.getItemBoxes().entrySet().iterator();
+			String message = new String();
+            while (itemBoxIter.hasNext()) {
+                Map.Entry<UUID, ItemBox> pair = (Map.Entry<UUID, ItemBox>) itemBoxIter.next();
+                UUID id = pair.getKey();
+                ItemBox itemBox = pair.getValue();
+                if (message.length() > 0) {
+                	message += '\0';
+                }
+                message += "uIB," + id.toString() + ",";
+                message += itemBox.getPos().serialize();
+    			message += "," + itemBox.getIsActive();
+    			message += "," + itemBox.isGrowing();
+    			message += "," + itemBox.getRegrowthTimer();
+            }
+			sendPacketToAll(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+		try {
+			Iterator<Entry<UUID, Item>> itemIter = gameState.getItems().entrySet().iterator();
+			String message = new String();
+			while (itemIter.hasNext()) {
+				Map.Entry<UUID, Item> pair = (Map.Entry<UUID, Item>) itemIter.next();
+                UUID id = pair.getKey();
+                Item item = pair.getValue();
+                if (message.length() > 0) {
+                	message += '\0';
+                }
+                message += "itemUpdate," + id.toString() + ",";
+                message += item.getPos().serialize();
+    			message += "," + item.getRot().serialize();
+    			message += "," + ItemType.getValue(item.getType());
+            }
+			sendPacketToAll(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void sendTrackJoinMessages(int trackID, UUID clientID, boolean success) {
+		System.out.println("Sending Track Join Message");
+		if (success) {
+			try {
+				String message = new String(
+					"joinTrack,"
+					+ trackID + ","
+					+ clientID.toString() + ","
+					+ serverState.getConnectedPlayers().size() + ","
+					+ "success"
+				);
+				sendPacket(message, clientID);
+			}
+			catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		else {
+			try {
+				String message = new String(
+						"joinTrack,"
+						+ trackID + ","
+						+ clientID.toString() + ","
+						+ "-1" + ","
+						+ "failure"
+					);
+				sendPacket(message, clientID);
+			}
+			catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	public void sendStartRace(int trackID) {
+		try {
+			String message = new String(
+				"startRace,"
+				+ trackID
+			);
+			sendPacketToAll(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+
+	private void updateItemBoxTimers() {
+		Iterator<Entry<UUID, ItemBox>> itemBoxIter = gameState.getItemBoxes().entrySet().iterator();
+		while (itemBoxIter.hasNext()) {
+			Map.Entry<UUID, ItemBox> itemBoxPair = (Map.Entry<UUID, ItemBox>) itemBoxIter.next();
+			ItemBox itemBox = itemBoxPair.getValue();
+			itemBox.updateTimers(elapsedTime);
+		}
+	}
+
+	private void checkCollisions() {
+		Iterator<Entry<UUID, GhostAvatar>> avatarIter = gameState.getGhostAvatars().entrySet().iterator();
+		while (avatarIter.hasNext()) {
+			Map.Entry<UUID, GhostAvatar> avatarPair = (Map.Entry<UUID, GhostAvatar>) avatarIter.next();
+			GhostAvatar avatar = avatarPair.getValue();
+			Vector3 gaPos = avatar.getPos();
+			Iterator<Entry<UUID, ItemBox>> itemBoxIter = gameState.getItemBoxes().entrySet().iterator();
+			// Check collisions with item boxes
+			while (itemBoxIter.hasNext()) {
+				Map.Entry<UUID, ItemBox> itemBoxPair = (Map.Entry<UUID, ItemBox>) itemBoxIter.next();
+				ItemBox itemBox = itemBoxPair.getValue();
+				if (itemBox.getIsActive() == 0 || itemBox.isGrowing() == 1) {
+					continue;
+				}
+				Vector3 ibPos = itemBox.getPos();
+				
+				double dist = calcDistance(
+					ibPos.x(), ibPos.z(),
+					gaPos.x(), gaPos.z()
+				);
+				// If a player has hit an item box
+				if (dist < 1f) {
+					itemBox.setIsActive(0);
+					Vector3 forwardVector = avatar.getRot().column(2);
+					float velocityForward = avatar.getVelocityForward();
+        			String message = new String(
+        				"itemBoxExplosion," +
+						ibPos.serialize() +
+	        			"," + forwardVector.x() * velocityForward +
+	        			"," + forwardVector.y() * velocityForward + 
+	        			"," + forwardVector.z() * velocityForward
+        			);
+        			try {
+						sendPacketToAll(message);
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					if (avatar.hasItem()) {
+						continue;
+					}
+					Item newItem = new Item(ItemType.getRandomItemType());
+					avatar.setItem(newItem);
+	        		gameState.getItems().put(newItem.getID(), newItem);
+	        		if (avatar.isNPC()) {
+	        			continue;
+	        		}
+	        		try {
+	        			message = new String(
+	        				"gotItem," +
+	        				newItem.getID() + "," + 
+    						ItemType.getValue(newItem.getType())
+	        			);
+	        			sendPacket(message, avatar.getId());
+	        		}
+	        		catch (IOException e) {
+	        			e.printStackTrace();
+	        		}
+				}
+			}
+			
+			Iterator<Entry<UUID, Item>> itemsIter = gameState.getItems().entrySet().iterator();
+			while (itemsIter.hasNext()) {
+				Map.Entry<UUID, Item> itemPair = (Map.Entry<UUID, Item>) itemsIter.next();
+				Item item = itemPair.getValue();
+				if (avatar.hasItem() && avatar.getItem().getID().equals(item.getID())) {
+					continue;
+				}
+				
+				Vector3 iPos = item.getPos();
+				
+				double dist = calcDistance(
+					iPos.x(), iPos.z(),
+					gaPos.x(), gaPos.z()
+				);
+				// System.out.println(dist);
+				// If a player has hit an item
+				if (dist < 1f) {
+					removeItemFromAvatar(item.getID());
+					Vector3 forwardVector = avatar.getRot().column(2);
+					float velocityForward = avatar.getVelocityForward();
+	        		try {
+	        			String message = new String(
+	        				"hitItem" +
+		        			"," + avatar.getId() +
+		        			"," + item.getID() +
+		        			"," + forwardVector.x() * velocityForward +
+		        			"," + forwardVector.y() * velocityForward + 
+		        			"," + forwardVector.z() * velocityForward
+	        			);
+	        			sendPacketToAll(message);
+	        		}
+	        		catch (IOException e) {
+	        			e.printStackTrace();
+	        		}
+	        		if (avatar.isNPC()) {
+	        			avatar.getPhysicsBody().handleCollision();
+	        		}
+	        		itemsIter.remove();
+				}
+			}
+		}
+	}
+	
+	protected void removeItemFromAvatar(UUID itemID) {
+		Iterator<Entry<UUID, GhostAvatar>> avatarIter = gameState.getGhostAvatars().entrySet().iterator();
+		while (avatarIter.hasNext()) {
+			Map.Entry<UUID, GhostAvatar> avatarPair = (Map.Entry<UUID, GhostAvatar>) avatarIter.next();
+			GhostAvatar avatar = avatarPair.getValue();
+			if (avatar.hasItem() && avatar.getItem().getID().equals(itemID)) {
+				avatar.removeItem();
+			}
+		}
+	}
+	
+	protected double calcDistance(float x1, float y1, float x2, float y2) {
+		float dx = (x1 - x2);
+		float dy = (y1 - y2);
+		return Math.sqrt(dx * dx + dy * dy);
+	}
+	
+	protected double calcDistance(float x1, float y1, float z1, float x2, float y2, float z2) {
+		float dx = (x1 - x2);
+		float dy = (y1 - y2);
+		float dz = (z1 - z2);
+		return Math.sqrt(dx * dx + dy * dy + dz * dz);
 	}
 
 	private void sendByeMessages(UUID clientID) {
@@ -115,13 +562,67 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 		// format: join, success or join, failure
 		try {
 			String message = new String("join,");
-			if (success) message += "success";
-			else message += "failure";
+			if (success) {
+				message += "success";
+			}
+			else {
+				message += "failure";
+			}
 			sendPacket(message, clientID);
 		}
 		catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
+	
+	private void setTrack(int trackID) {
+		this.currentTrack = trackID;
+	}
+	
+	public Boolean isATrackSelected() {
+		return currentTrack != -1;
+	}
+	
+	private void initRace() {
+		if (!isRaceInited) {
+			generateNPCs();
+			gameState.setRaceState(RaceState.COUNTDOWN);
+			gameState.setElapsedRaceTime(-5000);
+			isRaceInited = true;
+		}
+		setShouldInitRace(false);
+	}
+	
+	private void resetTrack(int trackID) {
+		isRaceInited = false;
+		synchronized(gameState.getGhostAvatars()) {
+			Iterator<Entry<UUID, GhostAvatar>> avatarIter = gameState.getGhostAvatars().entrySet().iterator();
+	    	while (avatarIter.hasNext()) {
+	            Map.Entry<UUID, GhostAvatar> pair = (Map.Entry<UUID, GhostAvatar>) avatarIter.next();
+	            UUID id = pair.getKey();
+	            if (!(pair.getValue().isNPC())) {
+	            	continue;
+	            }
+	    		gameState.removeGhostAvatar(id);
+	    		sendByeMessages(id);
+	    		avatarIter.remove();
+	    	}
+	    	gameState.setElapsedRaceTime(0l);
+		}
+	}
 
+	private void initTrack(int trackID) {
+		System.out.println("Initializing Track: " + trackID);
+		setTrack(trackID);
+		new Track1().initTrack(gameState);
+		System.out.println("Finished Initializing Track: " + trackID);
+	}
+
+	public boolean isShouldInitRace() {
+		return shouldInitRace;
+	}
+
+	public void setShouldInitRace(boolean shouldInitRace) {
+		this.shouldInitRace = shouldInitRace;
+	}
 }

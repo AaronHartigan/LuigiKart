@@ -34,7 +34,7 @@ final class GenericManualObjectSection extends AbstractGenericRenderable impleme
 
     private ManualObject manualParent;
     private SubMesh      subMesh;
-
+ 
     private Matrix4[] poseSkinMatrices;
     private Matrix3[] poseSkinMatricesIT;
 

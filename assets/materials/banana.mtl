@@ -1,0 +1,15 @@
+# Blender MTL File: 'banana.blend'
+# Material Count: 1
+newmtl banana
+Ns 1
+# ambient
+Ka 1.000000 1.000000 1.000000
+# diffuse
+Kd 0.40000 0.40000 0.40000
+# specular
+Ks 1.000000 1.000000 1.000000
+# emissive
+Ke 0.000000 0.000000 0.000000
+d 1
+illum 2
+map_Kd banana.png

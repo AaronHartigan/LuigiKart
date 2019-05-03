@@ -7,8 +7,8 @@ layout (binding = 2) uniform sampler2D tex_normal;
 layout (binding = 5) uniform sampler2D shadowMap;
 
 // Stage inputs and output
+in vec4 FragPosLightSpace;
 in vec2 tes_out;
-in vec4 FragPosLightSpace_out2;
 in vec3 varyingVertPos;
 in vec3 varyingNormal;
 out vec4 color;
@@ -20,6 +20,7 @@ const float COMPENSATION = 3.0;
 uniform mat4 mat4_norm;
 uniform mat4 mat4_mvp;
 uniform mat4 mat4_mv;
+uniform mat4 mat4_m;
 uniform mat4 mat4_p;
 uniform float multiplier;
 uniform float subdivisions;
@@ -42,6 +43,11 @@ uniform struct material_t
     vec4  emissive;
     float shininess;
 } material;
+
+uniform struct matrix_t {
+	mat4 lightSpaceMatrix;
+} matrix;
+
 
 // Light Struct
 struct light_t {
@@ -152,10 +158,33 @@ float ShadowCalculation(vec4 fragPosLightSpace)
     // get depth of current fragment from light's perspective
     float currentDepth = projCoords.z;
     // check whether current frag pos is in shadow
-	float bias = 0.0;
-    float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
-	if(projCoords.z > 1.0)
+	float bias = 0.001;
+	float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+	int taps = 2;
+    for(int x = -taps; x <= taps; ++x)
+    {
+        for(int y = -taps; y <= taps; ++y)
+        {
+            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
+            shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;        
+        }    
+    }
+    shadow /= ((taps * 2 + 1) * (taps * 2 + 1));
+	if(projCoords.z > 1.0) {
 		shadow = 0.0;
+	}
+	else {
+		projCoords = (projCoords - 0.5) * 2;
+		float x = projCoords.x;
+		float y = projCoords.y;
+		float distance = max(abs(x), abs(y));
+		distance = distance - 0.9f;
+		distance = clamp(distance, 0f, 1f);
+		distance = distance * 10f;
+		distance = clamp(distance, 0f, 1f);
+		shadow = shadow * (1f - distance);
+	}
 
     return shadow;
 }
@@ -176,16 +205,31 @@ void main() {
     }
 	*/
 	
-	float shadow = ShadowCalculation(FragPosLightSpace_out2);
-	// float shadow = 0f;
+	float shadow = ShadowCalculation(FragPosLightSpace);
+
 	vec4 effect = global_light.intensity;
 	vec4 special = vec4(0f, 0f, 0f, 0f);
     for (int i = 0; i < ssbo.lights.length(); ++i)
         special += get_light_effect(ssbo.lights[i], material);
-	effect += ((1 - shadow) * special);
+	effect += ((1f - shadow) * special);
+	
+	// If the height map has a blue pixel, render as a speed boost
+	if (hasHeightM > 0) {
+		color = texture2D(tex_height, tes_out) * effect;
+		if (color.b > 0.9) {
+			color = vec4(0, 0, 1, 1) * effect;
+			return;
+		}
+		
+	}
+	// If the user has not binded a texture yet (or disabled it), simply output a plain white.
+	if (hasTexture > 0) {
+		color = texture2D(tex_color, tes_out) * effect;
+	}
+	else {
+		color = vec4(1, 1, 1, 1) * effect;
+	}
 
-    // If the user has not binded a texture yet (or disabled it), simply output a plain white.
-    if (hasTexture > 0) color = texture2D(tex_color, tes_out) * effect;
-    else                color = vec4(1, 1, 1, 1) * effect;
+
 	//color = vec4(vec3(gl_FragCoord.z), 1.0);
 }
