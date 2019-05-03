@@ -201,9 +201,10 @@ public class MyGame extends VariableFrameRateGame {
 		SceneNode treeN = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(treeE.getName() + "Node");
 		treeN.attachObject(treeE);
 		// treeN.scale(0.01f, 0.01f, 0.01f);
-		treeN.translate(Vector3f.createFrom(-36.376953125f, 2f, -67.3828125f));
+		treeN.translate(Vector3f.createFrom(-60.376953125f, -2f, -67.3828125f));
 		//treeN.rotate(Degreef.createFrom(-90f), Vector3f.createUnitVectorY());
 		treeN.rotate(Degreef.createFrom(-90f), Vector3f.createUnitVectorX());
+		treeN.rotate(Degreef.createFrom(-45f), Vector3f.createUnitVectorZ());
 		// treeN.translate(-1000000f, 0f, 0f);
 	}
 
@@ -370,7 +371,7 @@ public class MyGame extends VariableFrameRateGame {
 		}
 	}
 	
-	float CAR_HEIGHT_OFFSET = 0.3f;
+	float CAR_HEIGHT_OFFSET = 0.25f;
 	float CAR_FORWARD_OFFSET = 0f;
 	protected void createDolphinWithCamera(SceneManager sm) throws IOException {
 		playerEntity = sm.createEntity("dolphin", "car1.obj");
@@ -731,7 +732,7 @@ public class MyGame extends VariableFrameRateGame {
 		for (Entry<UUID, GhostAvatar> entry : gameState.getGhostAvatars().entrySet()) {
 			SceneNode ghostN = sm.getSceneNode(entry.getKey().toString());
 			ghostN.setLocalPosition(entry.getValue().getPos());
-			ghostN.moveUp(0.3f); // CAR_HEIGHT_OFFSET
+			ghostN.moveUp(CAR_HEIGHT_OFFSET);
 			ghostN.setLocalRotation(entry.getValue().getRot());
 		}
 		for (Entry<UUID, Item> entry : gameState.getItems().entrySet()) {
