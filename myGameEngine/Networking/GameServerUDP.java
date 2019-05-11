@@ -91,11 +91,13 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 				messageTokens[11], messageTokens[12], messageTokens[13]
 			};
 			float vForward = Float.parseFloat(messageTokens[14]);
+			float actualTurn = Float.parseFloat(messageTokens[15]);
 			gameState.updateGhostAvatar(
 				clientID,
 				Vector3f.createFrom(pos),
 				Matrix3f.createFrom(rot),
 				vForward,
+				actualTurn,
 				0
 			);
 		}
@@ -179,6 +181,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 		ga.setPos(physicsBody.getPosition());
 		ga.setRot(physicsBody.getDirection().mult(physicsBody.getRotation().mult(physicsBody.getSpinRotation())));
 		ga.setVelocityForward(physicsBody.getVForward());
+		ga.setActualTurn(physicsBody.getActualTurn());
 		int newWaypoint = determineWaypoint(ga);
 		// System.out.println("Waypoint: " + newWaypoint);
 		ga.setWaypoint(newWaypoint);
@@ -215,7 +218,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 		}
 		else {
 			if (pb.getVForward() < 10f) {
-				pb.setAccelerating(true);	
+				pb.setAccelerating(true);
 			}
 			pb.setDesiredTurn(computeTurn(ga));
 		}
@@ -314,6 +317,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
     			message += ga.getPos().serialize();
     			message += "," + ga.getRot().serialize();
     			message += "," + ga.getVelocityForward();
+    			message += "," + ga.getActualTurn();
         	}
         	sendPacketToAll(message);
 		}

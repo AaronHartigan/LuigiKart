@@ -19,9 +19,11 @@ out vertex_t
 
 // uniform(s)/structure(s)
 uniform struct matrix_t {
-    mat4 model_view;            // view * model; transforms into view-space
+    mat4 model;            		// model; transforms into view-space
+    mat4 view;                  // view; transforms into view-space
     mat4 projection;            // transforms vertices into clip-space
     mat4 normal;                // inverse transpose of model-view matrix
+	mat4 lightSpaceMatrix;
 
     mat4 skin_matrices[128];     // Skinning Matrices (supports up to 128 bones)
     mat3 skin_matrices_IT[128];   // IT of Skinning Matrices (used for transforming vertex normals)
@@ -87,11 +89,11 @@ void main()
 
 
 
-    vec4 view_vertex        = matrix.model_view * vert_pos;
+    vec4 view_vertex        = matrix.view * matrix.model * vert_pos;
     gl_Position             = matrix.projection * view_vertex;
 
     vs_out.vertex_texcoord  = vertex_texcoord;
     vs_out.vertex_normal    = mat3(matrix.normal) * vert_nor;
     vs_out.vertex_position  = view_vertex.xyz;
-	vs_out.FragPosLightSpace = vec4(1.0, 1.0, 1.0, 1.0);
+	vs_out.FragPosLightSpace = matrix.lightSpaceMatrix * matrix.model * vec4(vertex_position, 1.0);
 }

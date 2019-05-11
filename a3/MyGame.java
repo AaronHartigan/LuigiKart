@@ -298,7 +298,8 @@ public class MyGame extends VariableFrameRateGame {
 			clientProtocol.updatePlayerInformation(
 				this.getPlayerPosition(),
 				this.getPlayerRotation(),
-				physicsBody.getVForward()
+				physicsBody.getVForward(),
+				physicsBody.getActualTurn()
 			);
 		}
 		SkeletalEntity treeSE = (SkeletalEntity) engine.getSceneManager().getEntity("tree");
@@ -389,6 +390,42 @@ public class MyGame extends VariableFrameRateGame {
 		playerAvatarRotatorN.translate(0f, CAR_HEIGHT_OFFSET, CAR_FORWARD_OFFSET);
 		playerAvatarRotatorN.scale(0.3f, 0.3f, 0.3f);
 		//dolphinN.setPhysicsObject(new PhysicsObject());
+		
+		// front left
+		Entity wheel1 = sm.createEntity("wheel1", "wheelSpikes.obj");
+		SceneNode wheel1N = playerAvatarRotator.createChildSceneNode("wheel1");
+		SceneNode wheel1yawN = wheel1N.createChildSceneNode("wheel1yaw");
+		wheel1yawN.attachObject(wheel1);
+		wheel1.setRenderState(cullingState);
+		wheel1N.translate(2.2f, -0.4f, 2.4f);
+		wheel1N.scale(0.15f, 0.15f, 0.15f);
+		
+		// front right
+		Entity wheel2 = sm.createEntity("wheel2", "wheelSpikes.obj");
+		SceneNode wheel2N = playerAvatarRotator.createChildSceneNode("wheel2");
+		SceneNode wheel2yawN = wheel2N.createChildSceneNode("wheel2yaw");
+		wheel2yawN.attachObject(wheel2);
+		wheel2.setRenderState(cullingState);
+		wheel2N.translate(-2.0f, -0.4f, 2.4f);
+		wheel2yawN.roll(Degreef.createFrom(180f));
+		wheel2N.scale(0.15f, 0.15f, 0.15f);
+		
+		// back left
+		Entity wheel3 = sm.createEntity("wheel3", "wheelSpikes.obj");
+		SceneNode wheel3N = playerAvatarRotator.createChildSceneNode("wheel3");
+		wheel3N.attachObject(wheel3);
+		wheel3.setRenderState(cullingState);
+		wheel3N.translate(2.2f, -0.4f, -1.45f);
+		wheel3N.scale(0.15f, 0.15f, 0.15f);
+		
+		// back right
+		Entity wheel4 = sm.createEntity("wheel4", "wheelSpikes.obj");
+		SceneNode wheel4N = playerAvatarRotator.createChildSceneNode("wheel4");
+		wheel4N.attachObject(wheel4);
+		wheel4.setRenderState(cullingState);
+		wheel4N.translate(-2.0f, -0.4f, -1.45f);
+		wheel4N.roll(Degreef.createFrom(180f));
+		wheel4N.scale(0.15f, 0.15f, 0.15f);
 
 		SceneNode skyN = sm.getRootSceneNode().createChildSceneNode("skyNode");
 		skyN.translate(-50f, 15f, -110f);
@@ -431,6 +468,10 @@ public class MyGame extends VariableFrameRateGame {
 			lobbyLightN.attachObject(lobbyLight);
 		}
 		playerEntity.setCanReceiveShadows(false);
+		getEngine().getSceneManager().getEntity("wheel1").setCanReceiveShadows(false);
+		getEngine().getSceneManager().getEntity("wheel2").setCanReceiveShadows(false);
+		getEngine().getSceneManager().getEntity("wheel3").setCanReceiveShadows(false);
+		getEngine().getSceneManager().getEntity("wheel4").setCanReceiveShadows(false);
 		sunlight.setVisible(false);
 		lobbyLight.setVisible(true);
 	}
@@ -456,6 +497,10 @@ public class MyGame extends VariableFrameRateGame {
 		}
 		cameraController.addNode(dolphinCamera);
 		playerEntity.setCanReceiveShadows(true);
+		getEngine().getSceneManager().getEntity("wheel1").setCanReceiveShadows(true);
+		getEngine().getSceneManager().getEntity("wheel2").setCanReceiveShadows(true);
+		getEngine().getSceneManager().getEntity("wheel3").setCanReceiveShadows(true);
+		getEngine().getSceneManager().getEntity("wheel4").setCanReceiveShadows(true);
 		sunlight.setVisible(true);
 		lobbyLight.setVisible(false);
 	}
@@ -699,20 +744,60 @@ public class MyGame extends VariableFrameRateGame {
 	
 	public void createGhostAvatar(UUID ghostID, Vector3 ghostPosition) {
 		try {
+			CullingState cullingState = (CullingState) getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.CULLING);
+			cullingState.setCulling(CullingState.Culling.DISABLED);
+
 			SceneManager sm = getEngine().getSceneManager();
 			SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode(ghostID.toString());
 			ghostN.setLocalPosition(ghostPosition);
 			Entity dolphinE = sm.createEntity(ghostID.toString(), "car1.obj");
+			dolphinE.setRenderState(cullingState);
 			ghostN.attachObject(dolphinE);
 			ghostN.scale(0.3f, 0.3f, 0.3f);
 			gameState.createGhostAvatar(ghostID, ghostPosition);
+			
+			// front left
+			Entity wheel1 = sm.createEntity("wheel1" + ghostID.toString(), "wheelSpikes.obj");
+			SceneNode wheel1N = ghostN.createChildSceneNode("wheel1" + ghostID.toString());
+			SceneNode wheel1yawN = wheel1N.createChildSceneNode("wheel1yaw" + ghostID.toString());
+			wheel1yawN.attachObject(wheel1);
+			wheel1.setRenderState(cullingState);
+			wheel1N.translate(2.2f, -0.4f, 2.4f);
+			wheel1N.scale(0.15f, 0.15f, 0.15f);
+			
+			// front right
+			Entity wheel2 = sm.createEntity("wheel2" + ghostID.toString(), "wheelSpikes.obj");
+			SceneNode wheel2N = ghostN.createChildSceneNode("wheel2" + ghostID.toString());
+			SceneNode wheel2yawN = wheel2N.createChildSceneNode("wheel2yaw" + ghostID.toString());
+			wheel2yawN.attachObject(wheel2);
+			wheel2.setRenderState(cullingState);
+			wheel2N.translate(-2.0f, -0.4f, 2.4f);
+			wheel2yawN.roll(Degreef.createFrom(180f));
+			wheel2N.scale(0.15f, 0.15f, 0.15f);
+			
+			// back left
+			Entity wheel3 = sm.createEntity("wheel3" + ghostID.toString(), "wheelSpikes.obj");
+			SceneNode wheel3N = ghostN.createChildSceneNode("wheel3" + ghostID.toString());
+			wheel3N.attachObject(wheel3);
+			wheel3.setRenderState(cullingState);
+			wheel3N.translate(2.2f, -0.4f, -1.45f);
+			wheel3N.scale(0.15f, 0.15f, 0.15f);
+			
+			// back right
+			Entity wheel4 = sm.createEntity("wheel4" + ghostID.toString(), "wheelSpikes.obj");
+			SceneNode wheel4N = ghostN.createChildSceneNode("wheel4" + ghostID.toString());
+			wheel4N.attachObject(wheel4);
+			wheel4.setRenderState(cullingState);
+			wheel4N.translate(-2.0f, -0.4f, -1.45f);
+			wheel4N.roll(Degreef.createFrom(180f));
+			wheel4N.scale(0.15f, 0.15f, 0.15f);
 		}
 		catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 	
-	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward, long time) {
+	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward, float actualTurn, long time) {
 		try {
 			SceneManager sm = getEngine().getSceneManager();
 			if (!sm.hasSceneNode(ghostID.toString())) {
@@ -720,7 +805,7 @@ public class MyGame extends VariableFrameRateGame {
 				createGhostAvatar(ghostID, ghostPosition);
 				return;
 			}
-			gameState.updateGhostAvatar(ghostID, ghostPosition, ghostRotation, vForward, time);
+			gameState.updateGhostAvatar(ghostID, ghostPosition, ghostRotation, vForward, actualTurn, time);
 		}
 		catch (RuntimeException e) {
 			e.printStackTrace();
@@ -728,12 +813,38 @@ public class MyGame extends VariableFrameRateGame {
 	}
 	
 	public void updateGameStateDisplay() {
+		getEngine().getSceneManager().getSceneNode("wheel3").pitch(Degreef.createFrom(physicsBody.getVForward() + physicsBody.getGravityForce()));
+		getEngine().getSceneManager().getSceneNode("wheel4").pitch(Degreef.createFrom(-physicsBody.getVForward() + physicsBody.getGravityForce()));
+		
+		getEngine().getSceneManager().getSceneNode("wheel1yaw").pitch(Degreef.createFrom(physicsBody.getVForward() + physicsBody.getGravityForce()));
+		getEngine().getSceneManager().getSceneNode("wheel1").setLocalRotation(Matrix3f.createIdentityMatrix());
+		getEngine().getSceneManager().getSceneNode("wheel1").yaw(Degreef.createFrom(physicsBody.getActualTurn() * 30f));
+		
+		getEngine().getSceneManager().getSceneNode("wheel2yaw").pitch(Degreef.createFrom(-physicsBody.getVForward() + physicsBody.getGravityForce()));
+		getEngine().getSceneManager().getSceneNode("wheel2").setLocalRotation(Matrix3f.createIdentityMatrix());
+		getEngine().getSceneManager().getSceneNode("wheel2").yaw(Degreef.createFrom(physicsBody.getActualTurn() * 30f));
+
 		SceneManager sm = getEngine().getSceneManager();
 		for (Entry<UUID, GhostAvatar> entry : gameState.getGhostAvatars().entrySet()) {
-			SceneNode ghostN = sm.getSceneNode(entry.getKey().toString());
+			String id = entry.getKey().toString();
+			SceneNode ghostN = sm.getSceneNode(id);
 			ghostN.setLocalPosition(entry.getValue().getPos());
 			ghostN.moveUp(CAR_HEIGHT_OFFSET);
 			ghostN.setLocalRotation(entry.getValue().getRot());
+			
+			GhostAvatar ga = entry.getValue();
+			
+			sm.getSceneNode("wheel3" + id).pitch(Degreef.createFrom(ga.getVelocityForward()));
+			sm.getSceneNode("wheel4" + id).pitch(Degreef.createFrom(-ga.getVelocityForward()));
+			
+			sm.getSceneNode("wheel1yaw" + id).pitch(Degreef.createFrom(ga.getVelocityForward()));
+			sm.getSceneNode("wheel1" + id).setLocalRotation(Matrix3f.createIdentityMatrix());
+			sm.getSceneNode("wheel1" + id).yaw(Degreef.createFrom(ga.getActualTurn() * 30f));
+			
+			sm.getSceneNode("wheel2yaw" + id).pitch(Degreef.createFrom(-ga.getVelocityForward()));
+			sm.getSceneNode("wheel2" + id).setLocalRotation(Matrix3f.createIdentityMatrix());
+			sm.getSceneNode("wheel2" + id).yaw(Degreef.createFrom(ga.getActualTurn() * 30f));
+
 		}
 		for (Entry<UUID, Item> entry : gameState.getItems().entrySet()) {
 			SceneNode itemN = sm.getSceneNode(entry.getKey().toString());

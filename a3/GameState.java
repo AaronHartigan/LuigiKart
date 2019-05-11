@@ -58,13 +58,14 @@ public class GameState {
 		ghostAvatars.put(ghostID, new GhostAvatar(ghostID));
 	}
 	
-	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward, long time) {
+	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward, float actualTurn, long time) {
 		if (!(ghostAvatars.containsKey(ghostID))) {
 			return;
 		}
 		ghostAvatars.get(ghostID).setPos(ghostPosition);
 		ghostAvatars.get(ghostID).setRot(ghostRotation);
 		ghostAvatars.get(ghostID).setVelocityForward(vForward);
+		ghostAvatars.get(ghostID).setActualTurn(actualTurn);
 		ghostAvatars.get(ghostID).setLastUpdateTime(time);
 	}
 	

@@ -497,7 +497,6 @@ final class GenericSkeletalEntity extends AbstractGenericSceneObject implements 
         for(String animName : animationsList.keySet()) {
             animationsList.replace(animName,null);
         }
-        animationsList = null;
 
         // meshes/sub-meshes are shared assets and may be in use by multiple
         // entities/sub-entities respectively, so do NOT destroy/dispose

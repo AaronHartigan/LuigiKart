@@ -13,6 +13,7 @@ public class GhostAvatar {
 	private float velocityForward = 0f;
 	private Vector3 pos = Vector3f.createFrom(0f, 0f, 0f);
 	private Matrix3 rot = Matrix3f.createIdentityMatrix();
+	private float actualTurn;
 	private boolean shouldRemove = false;
 	private boolean isNPC = false;
 	private PhysicsBody physicsBody = null;
@@ -109,5 +110,13 @@ public class GhostAvatar {
 
 	public void setWaypoint(int waypoint) {
 		this.waypoint = waypoint;
+	}
+
+	public void setActualTurn(float actualTurn) {
+		this.actualTurn = actualTurn;
+	}
+	
+	public float getActualTurn() {
+		return actualTurn;
 	}
 }

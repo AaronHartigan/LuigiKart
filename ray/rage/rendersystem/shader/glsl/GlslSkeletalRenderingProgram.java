@@ -70,9 +70,11 @@ class GlslSkeletalRenderingProgram extends AbstractGlslProgram {
 
     private GlslProgramStorageBufferFloat lightsBuffer;
 
-    private GlslProgramUniformMat4 modelViewMatrix;
+    private GlslProgramUniformMat4 modelMatrix;
+    private GlslProgramUniformMat4 viewMatrix;
     private GlslProgramUniformMat4 projMatrix;
     private GlslProgramUniformMat4 normalMatrix;
+    private GlslProgramUniformMat4 lightSpaceMatrix;
 
     private ArrayList<GlslProgramUniformMat4> skinMatrices;
     private ArrayList<GlslProgramUniformMat3> skinMatricesIT;
@@ -104,12 +106,13 @@ class GlslSkeletalRenderingProgram extends AbstractGlslProgram {
         final Matrix4 model = r.getWorldTransformMatrix();
         final Matrix4 view = ctx.getViewMatrix();
         final Matrix4 proj = ctx.getProjectionMatrix();
+        final Matrix4 lightSpace = ctx.getLightSpaceMatrix();
 
         setRenderable(r);
         setGlobalAmbientLight(ctx.getAmbientLight());
         setLocalLights(ctx.getLightsList(), view);
         setMaterial(r.getMaterial());
-        setMatrixUniforms(model, view, proj);
+        setMatrixUniforms(model, view, proj, lightSpace);
     }
 
     private void setRenderable(Renderable r) {
@@ -220,10 +223,12 @@ class GlslSkeletalRenderingProgram extends AbstractGlslProgram {
         materialShininess.set(mat.getShininess());
     }
 
-    private void setMatrixUniforms(Matrix4 model, Matrix4 view, Matrix4 proj) {
+    private void setMatrixUniforms(Matrix4 model, Matrix4 view, Matrix4 proj, Matrix4 lightSpace) {
         final Matrix4 modelView = view.mult(model);
-        modelViewMatrix.set(modelView);
+        modelMatrix.set(model);
+        viewMatrix.set(view);
         projMatrix.set(proj);
+        lightSpaceMatrix.set(lightSpace);
         normalMatrix.set(modelView.inverse().transpose());
     }
 
@@ -247,8 +252,10 @@ class GlslSkeletalRenderingProgram extends AbstractGlslProgram {
         materialEmissive = new GlslProgramUniformVec4(this, canvas, "material.emissive");
         materialShininess = new GlslProgramUniformFloat(this, canvas, "material.shininess");
 
-        modelViewMatrix = new GlslProgramUniformMat4(this, canvas, "matrix.model_view");
+        modelMatrix = new GlslProgramUniformMat4(this, canvas, "matrix.model");
+        viewMatrix = new GlslProgramUniformMat4(this, canvas, "matrix.view");
         projMatrix = new GlslProgramUniformMat4(this, canvas, "matrix.projection");
+        lightSpaceMatrix = new GlslProgramUniformMat4(this, canvas, "matrix.lightSpaceMatrix");
         normalMatrix = new GlslProgramUniformMat4(this, canvas, "matrix.normal");
 
         // Get as many UniformMat4s for the bones as exist in the shader. Catch exceptions
@@ -290,9 +297,11 @@ class GlslSkeletalRenderingProgram extends AbstractGlslProgram {
             materialEmissive.notifyDispose();
             materialShininess.notifyDispose();
 
-            modelViewMatrix.notifyDispose();
+            modelMatrix.notifyDispose();
+            viewMatrix.notifyDispose();
             projMatrix.notifyDispose();
             normalMatrix.notifyDispose();
+            lightSpaceMatrix.notifyDispose();
 
             boneIndicesBuffer.notifyDispose();
             boneWeightsBuffer.notifyDispose();
@@ -330,9 +339,11 @@ class GlslSkeletalRenderingProgram extends AbstractGlslProgram {
             materialEmissive = null;
             materialShininess = null;
 
-            modelViewMatrix = null;
+            modelMatrix = null;
+            viewMatrix = null;
             projMatrix = null;
             normalMatrix = null;
+            lightSpaceMatrix = null;
 
             initialized = false;
         }
