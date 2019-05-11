@@ -2,10 +2,10 @@
 # Material Count: 1
 
 newmtl car1
-Ns 1
+Ns 40
 Ka 1.000000 1.000000 1.000000
 Kd 0.8 0.8 0.8
-Ks 0.8 0.8 0.8
+Ks 1.0 1.0 1.0
 d 1
 illum 2
 map_Kd car1.png

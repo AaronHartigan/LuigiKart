@@ -8,6 +8,12 @@ import myGameEngine.controllers.NodeOrbitController;
 import myGameEngine.controllers.ParticleController;
 import myGameEngine.myRage.HUDString;
 import net.java.games.input.Controller;
+import ray.audio.AudioManagerFactory;
+import ray.audio.AudioResource;
+import ray.audio.AudioResourceType;
+import ray.audio.IAudioManager;
+import ray.audio.Sound;
+import ray.audio.SoundType;
 import ray.input.GenericInputManager;
 import ray.input.InputManager;
 import ray.networking.IGameConnection.ProtocolType;
@@ -48,7 +54,6 @@ import ray.rml.Vector3f;
 import java.awt.*;
 import java.io.*;
 import java.net.InetAddress;
-import java.rmi.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map.Entry;
@@ -88,11 +93,16 @@ public class MyGame extends VariableFrameRateGame {
 	private final boolean SHOW_PACKET_MESSAGES = false;
 	private NodeOrbitController cameraController = null; 
 	private PhysicsBody physicsBody;
+	private LobbyGui lobbyGui = null;
 	private long frametime;
 	private Light lobbyLight = null;
 	private Light sunlight = null;
 	private Entity playerEntity = null;
 	private RotationController lobbyRotator = null;
+	private IAudioManager audioMgr = null;
+	private Sound song1;
+	private TextureState carTexture = null;
+	private int carTextureNum = 1;
 
 	public static synchronized String createID() {
 	    return String.valueOf(particleID++);
@@ -157,7 +167,7 @@ public class MyGame extends VariableFrameRateGame {
 		camera.setPo((Vector3f)Vector3f.createFrom(0.0f, 0.0f, 0.0f));
 		SceneNode cameraNode = rootNode.createChildSceneNode(camera.getName() + "Node");
 		cameraNode.attachObject(camera);
-		camera.getFrustum().setFarClipDistance(2000.0f);
+		camera.getFrustum().setFarClipDistance(500.0f);
 		camera.getFrustum().setFieldOfViewY(Degreef.createFrom(60.0f));
 	}
 	
@@ -168,6 +178,7 @@ public class MyGame extends VariableFrameRateGame {
 	
 	@Override
 	protected void setupScene(Engine eng, SceneManager sm) throws IOException {
+		setTextures(new PreloadTextures(this));
 		lobbyRotator = new RotationController(Vector3f.createUnitVectorY(), 0.02f);
 		getEngine().getSceneManager().addController(lobbyRotator);
 		setupNetworking();
@@ -182,8 +193,30 @@ public class MyGame extends VariableFrameRateGame {
 		initMeshes();
 		setupInputs();
 		createSkyBox(eng, sm);
-		setTextures(new PreloadTextures(this));
 		timerGui = new TimerGui(this);
+		lobbyGui = new LobbyGui(this);
+		initAudio(sm);
+	}
+
+	private void initAudio(SceneManager sm) {
+		AudioResource songResource1;
+		audioMgr = AudioManagerFactory.createAudioManager("ray.audio.joal.JOALAudioManager");
+		if (!audioMgr.initialize()) {
+			System.out.println("Audio Manager failed to initialize.");
+			return;
+		}
+		songResource1 = audioMgr.createAudioResource("test.wav", AudioResourceType.AUDIO_SAMPLE);
+		song1 = new Sound(songResource1, SoundType.SOUND_MUSIC, 15, true);
+		song1.initialize(audioMgr);
+		
+		setEarParameters(sm);
+		song1.play();
+	}
+
+	private void setEarParameters(SceneManager sm) {
+		Camera camera = sm.getCamera("MainCamera");
+		audioMgr.getEar().setLocation(camera.getPo());
+		audioMgr.getEar().setOrientation(camera.getFd(), Vector3f.createUnitVectorY());
 	}
 
 	private void createTree(SceneManager sm) throws IOException {
@@ -302,11 +335,11 @@ public class MyGame extends VariableFrameRateGame {
 				physicsBody.getActualTurn()
 			);
 		}
-		SkeletalEntity treeSE = (SkeletalEntity) engine.getSceneManager().getEntity("tree");
-		treeSE.update();
+		((SkeletalEntity) engine.getSceneManager().getEntity("tree")).update();
 		updatePlayerItem();
 		updateGameStateDisplay();
 		updateItemBoxesRotation();
+		setEarParameters(getEngine().getSceneManager());
 		// PRINT PLAYER POSITION
 		// System.out.println(playerNode.getWorldPosition());
 	}
@@ -387,6 +420,9 @@ public class MyGame extends VariableFrameRateGame {
 		playerAvatar = playerAvatarN;
 		playerAvatarRotator = playerAvatarRotatorN;
 		playerAvatarRotatorN.attachObject(playerEntity);
+		carTexture = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+		playerEntity.setRenderState(carTexture);
+		updateCarTexture();
 		playerAvatarRotatorN.translate(0f, CAR_HEIGHT_OFFSET, CAR_FORWARD_OFFSET);
 		playerAvatarRotatorN.scale(0.3f, 0.3f, 0.3f);
 		//dolphinN.setPhysicsObject(new PhysicsObject());
@@ -671,7 +707,7 @@ public class MyGame extends VariableFrameRateGame {
 		plane.setTextureTiling(1);
 
 		plane.setHeightMap(getEngine(), "height_map.png");
-		plane.setQuality(8);
+		plane.setQuality(9);
 		plane.setMultiplier(10);
 	}
 	
@@ -1264,10 +1300,54 @@ public class MyGame extends VariableFrameRateGame {
 	public void joinTrack(int trackID) {
 		clientState.setJoinedTrack(trackID);
 		gameState.setRaceState(RaceState.COUNTDOWN);
+		lobbyGui.hide();
 	}
 
 	public void updateAvatar(Vector3 ghostPosition, Matrix3 ghostRotation) {
 		physicsBody.setPosition(ghostPosition);
 		physicsBody.setRotation(ghostRotation);
+	}
+	
+	private long lastCarTextureUpdate = 0;
+	private long INPUT_DELAY = 200;
+	public void guiInputLeft() {
+		switch (gameState.getRaceState()) {
+		case LOBBY:
+			if ((System.currentTimeMillis() - lastCarTextureUpdate)  < INPUT_DELAY) {
+				return;
+			}
+			lastCarTextureUpdate = System.currentTimeMillis();
+			carTextureNum = (carTextureNum - 1);
+			if (carTextureNum <= 0) {
+				carTextureNum += 8;
+			}
+			updateCarTexture();
+			break;
+		default:
+			break;
+		}
+	}
+	
+	public void guiInputRight() {
+		switch (gameState.getRaceState()) {
+		case LOBBY:
+			if ((System.currentTimeMillis() - lastCarTextureUpdate)  < INPUT_DELAY) {
+				return;
+			}
+			lastCarTextureUpdate = System.currentTimeMillis();
+			carTextureNum = carTextureNum + 1;
+			if (carTextureNum >= 9) {
+				carTextureNum = carTextureNum - 8;
+			}
+			updateCarTexture();
+			break;
+		default:
+			break;
+		}
+	}
+
+
+	private void updateCarTexture() {
+		carTexture.setTexture(getTextures().getCarTexture(carTextureNum));
 	}
 }

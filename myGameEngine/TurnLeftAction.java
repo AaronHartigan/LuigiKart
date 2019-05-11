@@ -13,6 +13,7 @@ public class TurnLeftAction extends AbstractInputAction {
 
 	@Override
 	public void performAction(float time, Event evt) {
+		g.guiInputLeft();
 		if (!g.isRacingInputDisabled()) {
 			g.getPhysicsBody().setDesiredTurn(1f);
 		}

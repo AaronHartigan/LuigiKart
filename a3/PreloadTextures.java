@@ -14,7 +14,8 @@ public class PreloadTextures {
 		yellow1,
 		gray1,
 		n1, n2, n3, n4, n5, n6, n7, n8, n9, n0, colon,
-		background
+		background,
+		car1, car2, car3, car4, car5, car6, car7, car8
 	;
 	
 	enum TEXTURE {
@@ -25,7 +26,8 @@ public class PreloadTextures {
 		YELLOW1,
 		GRAY1,
 		N1, N2, N3, N4, N5, N6, N7, N8, N9, N0, COLON,
-		BACKGROUND
+		BACKGROUND,
+		CAR1, CAR2, CAR3, CAR4, CAR5, CAR6, CAR7, CAR8
 	}
 
 	public PreloadTextures(MyGame myGame) {
@@ -52,6 +54,14 @@ public class PreloadTextures {
 			n8 = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("8.png");
 			n9 = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("9.png");
 			n0 = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("0.png");
+			car1 = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("car1.png");
+			car2 = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("car2.png");
+			car3 = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("car3.png");
+			car4 = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("car4.png");
+			car5 = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("car5.png");
+			car6 = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("car6.png");
+			car7 = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("car7.png");
+			car8 = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("car8.png");
 			colon = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("colon.png");
 			background = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("timerBackground.png");
 		} catch (IOException e) {
@@ -81,6 +91,28 @@ public class PreloadTextures {
 			return n8;
 		case 9:
 			return n9;
+		}
+		return null;
+	}
+	
+	public Texture getCarTexture(int num) {
+		switch(num) {
+		case 1:
+			return car1;
+		case 2:
+			return car2;
+		case 3:
+			return car3;
+		case 4:
+			return car4;
+		case 5:
+			return car5;
+		case 6:
+			return car6;
+		case 7:
+			return car7;
+		case 8:
+			return car8;
 		}
 		return null;
 	}
