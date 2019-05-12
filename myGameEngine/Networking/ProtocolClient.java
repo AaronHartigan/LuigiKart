@@ -43,7 +43,7 @@ public class ProtocolClient extends GameConnectionClient {
 				System.out.println("Client Message: " + message);
 				if (messageTokens[1].compareTo("success") == 0) {
 					game.getClientState().setConnected(true);
-					sendCreateMessage(game.getPlayerPosition());
+					sendCreateMessage(game.getPlayerPosition(), game.getCarTextureNum());
 				}
 				else if (messageTokens[1].compareTo("failure") == 0) {
 					game.getClientState().setConnected(false);
@@ -62,7 +62,8 @@ public class ProtocolClient extends GameConnectionClient {
 					Float.parseFloat(messageTokens[3]),
 					Float.parseFloat(messageTokens[4])
 				);
-				game.createGhostAvatar(ghostID, ghostPosition);
+				int color = Integer.parseInt(messageTokens[5]);
+				game.createGhostAvatar(ghostID, ghostPosition, color);
 			}
 			else if(messageTokens[0].compareTo("update") == 0) { // etc…..
 				// format: update, remoteId, x,y,z, rot
@@ -85,13 +86,14 @@ public class ProtocolClient extends GameConnectionClient {
 				Matrix3 ghostRotation = Matrix3f.createFrom(floats);
 				float vForward = Float.parseFloat(messageTokens[15]);
 				float actualTurn = Float.parseFloat(messageTokens[16]);
+				int color = Integer.parseInt(messageTokens[17]);
 				if (ghostID.equals(id)) {
 					if (game.hasRaceFinished()) {
 						game.updateAvatar(ghostPosition, ghostRotation);
 					}
 					continue;
 				}
-				game.updateGhostAvatar(ghostID, ghostPosition, ghostRotation, vForward, actualTurn, time);
+				game.updateGhostAvatar(ghostID, ghostPosition, ghostRotation, vForward, actualTurn, color, time);
 			}
 			else if(messageTokens[0].compareTo("uIB") == 0) {
 				// Update ItemBox
@@ -195,10 +197,10 @@ public class ProtocolClient extends GameConnectionClient {
 		}
 	}
 
-	public void sendCreateMessage(Vector3 pos) {
+	public void sendCreateMessage(Vector3 pos, int color) {
 		try {
 			String message = new String("create," + id.toString());
-			message += "," + pos.x()+"," + pos.y() + "," + pos.z();
+			message += "," + pos.x()+"," + pos.y() + "," + pos.z() + "," + color;
 			sendPacket(message);
 		}
 		catch (IOException e) {
@@ -226,13 +228,14 @@ public class ProtocolClient extends GameConnectionClient {
 		}
 	}
 
-	public void updatePlayerInformation(Vector3 pos, Matrix3 rot, float vForward, float actualTurn) {
+	public void updatePlayerInformation(Vector3 pos, Matrix3 rot, float vForward, float actualTurn, int carTextureNum) {
 		try {
 			String message = new String("update," + id.toString());
 			message += "," + pos.x()+"," + pos.y() + "," + pos.z();
 			message += "," + rot.serialize();
 			message += "," + vForward;
 			message += "," + actualTurn;
+			message += "," + carTextureNum;
 			sendPacket(message);
 		}
 		catch (IOException e) {
@@ -250,12 +253,13 @@ public class ProtocolClient extends GameConnectionClient {
 		}
 	}
 
-	public void joinTrack(int trackID) {
+	public void joinTrack(int trackID, int carTextureNum) {
 		try {
 			String message = (
 				"joinTrack,"
 				+ id.toString() + ","
-				+ trackID
+				+ trackID + ","
+				+ carTextureNum
 			);
 			sendPacket(message);
 		}

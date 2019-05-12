@@ -5,6 +5,7 @@ import java.net.InetAddress;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
@@ -34,6 +35,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	private long elapsedTime = 0;
 	private int currentTrack = -1;
 	private long TICK_RATE = 60;
+	private boolean[] claimedColors = {false, false, false, false, false, false, false, false};
 	private int MAX_PLAYERS_PER_TRACK = 8;
 	private boolean shouldInitRace = false;
 	private boolean isRaceInited = false;
@@ -77,6 +79,8 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 		else if (messageTokens[0].compareTo("create") == 0) {
 			UUID clientID = UUID.fromString(messageTokens[1]);
 			String[] pos = { messageTokens[2], messageTokens[3], messageTokens[4] };
+			int color = Integer.parseInt(messageTokens[5]);
+			claimedColors[color - 1] = true;
 			gameState.createGhostAvatar(clientID, Vector3f.createFrom(pos));
 			gameState.getGhostAvatars().get(clientID).setPhysicsBody(
 				new PhysicsBody(Vector3f.createFrom(0f, 0f, 0f), Matrix3f.createIdentityMatrix())
@@ -92,6 +96,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			};
 			float vForward = Float.parseFloat(messageTokens[14]);
 			float actualTurn = Float.parseFloat(messageTokens[15]);
+			int color = Integer.parseInt(messageTokens[16]);
 			gameState.updateGhostAvatar(
 				clientID,
 				Vector3f.createFrom(pos),
@@ -100,6 +105,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 				actualTurn,
 				0
 			);
+			gameState.getGhostAvatars().get(clientID).setColor(color);
 		}
 		else if (messageTokens[0].compareTo("bye") == 0) {
 			UUID clientID = UUID.fromString(messageTokens[1]);
@@ -111,8 +117,10 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 		else if (messageTokens[0].compareTo("joinTrack") == 0) {
 			UUID clientID = UUID.fromString(messageTokens[1]);
 			int trackID = Integer.parseInt(messageTokens[2]);
+			int color = Integer.parseInt(messageTokens[3]);
 			if (serverState.getConnectedPlayers().size() < MAX_PLAYERS_PER_TRACK) {
 				serverState.getConnectedPlayers().put(clientID, new PlayerState(clientID, trackID, System.currentTimeMillis()));
+				claimedColors[color - 1] = true;
 				sendTrackJoinMessages(trackID, clientID, true);
 			}
 			else {
@@ -166,6 +174,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 				GhostAvatar npc = new GhostAvatar(ghostID);
 				npc.setNPC(true);
 				npc.setPos(Track1.getPosition(MAX_PLAYERS_PER_TRACK - i));
+				npc.setColor(getNextColor());
 				gameState.getGhostAvatars().put(ghostID, npc);
 				gameState.getGhostAvatars().get(ghostID).setPhysicsBody(
 					new PhysicsBody(Track1.getPosition(MAX_PLAYERS_PER_TRACK - i), Matrix3f.createIdentityMatrix())
@@ -271,6 +280,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	public void sendPackets() {
 		updateRaceState();
     	if (shouldInitRace) {
+    		System.out.println("Initting race");
     		initRace();
     	}
     	else if (gameState.getRaceState() == RaceState.FINISH) {
@@ -318,6 +328,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
     			message += "," + ga.getRot().serialize();
     			message += "," + ga.getVelocityForward();
     			message += "," + ga.getActualTurn();
+    			message += "," + ga.getColor(); // getNextColor();
         	}
         	sendPacketToAll(message);
 		}
@@ -365,6 +376,16 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 		catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	private int getNextColor() {
+		for (int i = 0; i < 8; i++) {
+			if (!claimedColors[i]) {
+				claimedColors[i] = true;
+				return i + 1;
+			}
+		}
+		return 1;
 	}
 
 	private void sendTrackJoinMessages(int trackID, UUID clientID, boolean success) {

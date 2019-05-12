@@ -104,6 +104,10 @@ public class MyGame extends VariableFrameRateGame {
 	private TextureState carTexture = null;
 	private int carTextureNum = 1;
 
+	public int getCarTextureNum() {
+		return carTextureNum;
+	}
+
 	public static synchronized String createID() {
 	    return String.valueOf(particleID++);
 	}    
@@ -332,7 +336,8 @@ public class MyGame extends VariableFrameRateGame {
 				this.getPlayerPosition(),
 				this.getPlayerRotation(),
 				physicsBody.getVForward(),
-				physicsBody.getActualTurn()
+				physicsBody.getActualTurn(),
+				carTextureNum
 			);
 		}
 		((SkeletalEntity) engine.getSceneManager().getEntity("tree")).update();
@@ -778,7 +783,7 @@ public class MyGame extends VariableFrameRateGame {
 		return playerAvatarRotator.getWorldRotation();
 	}
 	
-	public void createGhostAvatar(UUID ghostID, Vector3 ghostPosition) {
+	public void createGhostAvatar(UUID ghostID, Vector3 ghostPosition, int color) {
 		try {
 			CullingState cullingState = (CullingState) getEngine().getSceneManager().getRenderSystem().createRenderState(RenderState.Type.CULLING);
 			cullingState.setCulling(CullingState.Culling.DISABLED);
@@ -789,6 +794,9 @@ public class MyGame extends VariableFrameRateGame {
 			Entity dolphinE = sm.createEntity(ghostID.toString(), "car1.obj");
 			dolphinE.setRenderState(cullingState);
 			ghostN.attachObject(dolphinE);
+			TextureState ghostCarTexture = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+			ghostCarTexture.setTexture(getTextures().getCarTexture(color));
+			dolphinE.setRenderState(ghostCarTexture);
 			ghostN.scale(0.3f, 0.3f, 0.3f);
 			gameState.createGhostAvatar(ghostID, ghostPosition);
 			
@@ -833,12 +841,12 @@ public class MyGame extends VariableFrameRateGame {
 		}
 	}
 	
-	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward, float actualTurn, long time) {
+	public void updateGhostAvatar(UUID ghostID, Vector3 ghostPosition, Matrix3 ghostRotation, float vForward, float actualTurn, int color, long time) {
 		try {
 			SceneManager sm = getEngine().getSceneManager();
 			if (!sm.hasSceneNode(ghostID.toString())) {
 				System.out.println("Ghost does not exist.  Creating: " + ghostID.toString());
-				createGhostAvatar(ghostID, ghostPosition);
+				createGhostAvatar(ghostID, ghostPosition, color);
 				return;
 			}
 			gameState.updateGhostAvatar(ghostID, ghostPosition, ghostRotation, vForward, actualTurn, time);
@@ -1165,7 +1173,7 @@ public class MyGame extends VariableFrameRateGame {
 		}
 		else if (!clientState.hasTrack()) {
 			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Join Track");
-			clientProtocol.joinTrack(clientState.getSelectedTrack());
+			clientProtocol.joinTrack(clientState.getSelectedTrack(), carTextureNum);
 		}
 		else {
 			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Start Track");

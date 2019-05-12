@@ -19,6 +19,7 @@ public class GhostAvatar {
 	private PhysicsBody physicsBody = null;
 	private long lastUpdateTime = 0;
 	private int waypoint = -1;
+	private int color;
 
 	public GhostAvatar(UUID id) {
 		this.setId(id);
@@ -118,5 +119,13 @@ public class GhostAvatar {
 	
 	public float getActualTurn() {
 		return actualTurn;
+	}
+
+	public void setColor(int color) {
+		this.color = color;
+	}
+	
+	public int getColor() {
+		return color;
 	}
 }
