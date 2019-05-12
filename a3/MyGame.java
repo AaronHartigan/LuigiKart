@@ -103,6 +103,7 @@ public class MyGame extends VariableFrameRateGame {
 	private Sound song1;
 	private TextureState carTexture = null;
 	private int carTextureNum = 1;
+	private long totalElapsedTime = 0;
 
 	public int getCarTextureNum() {
 		return carTextureNum;
@@ -345,6 +346,13 @@ public class MyGame extends VariableFrameRateGame {
 		updateGameStateDisplay();
 		updateItemBoxesRotation();
 		setEarParameters(getEngine().getSceneManager());
+		if ((gameState.getRaceState() == RaceState.RACING ||
+			gameState.getRaceState() == RaceState.COUNTDOWN)
+			&& !clientState.isConnected()
+		) {
+			totalElapsedTime += elapsTime;
+			updateRaceTime(totalElapsedTime);
+		}
 		// PRINT PLAYER POSITION
 		// System.out.println(playerNode.getWorldPosition());
 	}
@@ -1166,18 +1174,33 @@ public class MyGame extends VariableFrameRateGame {
 	public void inputAction() {
 		if (clientState.isRaceFinished()) {
 			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Finish Track");
-			clientProtocol.finishTrack(clientState.getSelectedTrack());
+			if (clientState.isConnected()) {
+				clientProtocol.finishTrack(clientState.getSelectedTrack());
+			}
 			clientState.setJoinedTrack(0);
 			clientState.setRaceFinished(false);
 			setCameraToSky();
 		}
 		else if (!clientState.hasTrack()) {
 			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Join Track");
-			clientProtocol.joinTrack(clientState.getSelectedTrack(), carTextureNum);
+			if (clientState.isConnected()) {
+				clientProtocol.joinTrack(clientState.getSelectedTrack(), carTextureNum);
+			}
+			else {
+				joinTrack(1);
+				setCameraToAvatar();
+				setStartingPosition(1);
+			}
 		}
 		else {
 			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Start Track");
-			clientProtocol.sendStartMessage(clientState.getJoinedTrack());
+			if (clientState.isConnected()) {
+				clientProtocol.sendStartMessage(clientState.getJoinedTrack());
+			}
+			else {
+				startRace(1);
+				totalElapsedTime = -3500;
+			}
 		}
 	}
 
@@ -1307,7 +1330,7 @@ public class MyGame extends VariableFrameRateGame {
 
 	public void joinTrack(int trackID) {
 		clientState.setJoinedTrack(trackID);
-		gameState.setRaceState(RaceState.COUNTDOWN);
+		gameState.setRaceState(RaceState.WAITING);
 		lobbyGui.hide();
 	}
 
