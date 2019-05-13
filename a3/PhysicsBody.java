@@ -71,10 +71,10 @@ public class PhysicsBody {
 	public void updatePhysics(float elapsedMS) {
 		updateTimers(elapsedMS);
 		float elapsedSec = elapsedMS / 1000;
-		Vector3 fv = direction.mult(rotation).column(2);
+		Vector3 fv = direction.mult(rotation).column(2); // forward vector
 		
 		// Handle speed boost
-		setOnSpeedBoost(getIsSpeedBoost(position.x(), position.z(), fv, 1.5f));
+		setOnSpeedBoost(getIsSpeedBoost(position.x(), position.z(), fv, 1.25f));
 		
 		// Handle collision spinning
 		if (isSpinning()) {
@@ -135,20 +135,21 @@ public class PhysicsBody {
 		
 		// Check if player is running into a wall by checking the angle of the avatar
 		float currentHeight = position.y();
-		float tCAR_LENGTH = vForward > 0 ? 0.5f : -0.5f;
-		position = position.add(rotation.column(2).mult(tCAR_LENGTH)); // Move forward
+		float tCAR_LENGTH = vForward > 0 ? 0.6f : -0.6f;
+		position = position.add(direction.column(2).mult(tCAR_LENGTH)); // Move forward
 		Vector3 newLP = position;
-		position = position.add(rotation.column(2).mult(-tCAR_LENGTH)); // Move backward
+		position = position.add(direction.column(2).mult(-tCAR_LENGTH)); // Move backward
 		float heightDifferential = (getGroundHeight(newLP.x(), newLP.z())) - currentHeight;
-		float tpitchAngle = (float) Math.toDegrees(Math.atan(heightDifferential / Math.abs(tCAR_LENGTH)));
-		if (tpitchAngle > 45f) {
+		float tpitchAngle = (float) Math.toDegrees(Math.atan(Math.abs(heightDifferential) / Math.abs(tCAR_LENGTH)));
+		if (heightDifferential > 0f && tpitchAngle > 45f) {
 			// Calculate angle and set new angle and velocity
-			vForward = 0f;
+			vForward = -vForward / 10;
 		}
 		else {
 			// Move forward
 			position = position.add(fv);
 		}
+
 		
 		// Handle new location's height
 		float groundHeight = getGroundHeight(position.x(), position.z());
@@ -205,11 +206,8 @@ public class PhysicsBody {
 			
 			// Calculate roll
 			float CAR_WIDTH = 0.3f;
-			// System.out.println(position);
 			position = position.add(direction.column(0).mult(CAR_LENGTH)); // Move right
 			heading = position;
-			// System.out.println(heading);
-			// System.out.println("---------");
 			position = position.add(direction.column(0).mult(-CAR_LENGTH)); // Move left
 			heightChange = (getGroundHeight(heading.x(), heading.z())) - currentHeight;
 			float rollAngle = (float) Math.toDegrees(Math.atan(heightChange / CAR_WIDTH)) * 0.6f; // car rolls too much, damp it
@@ -446,31 +444,8 @@ public class PhysicsBody {
 		targetX = globalX / scale + 0.5f;
 		targetZ = 1 - (globalZ / scale + 0.5f);
 
-		switch (8) {
-		case 5:
-			targetZ += 0.030f;
-			break;
-		case 6:
-			targetZ += 0.020f;
-			break;
-		case 7:
-			targetZ += 0.010f;
-			break;
-		case 8:
-			targetZ += 0.006f;
-			break;
-		case 9:
-			targetZ += 0.004f;
-			break;
-		case 10:
-			targetZ += 0.002f;
-			break;
-		case 11:
-			targetZ += 0.001f;
-			break;
-		default: // 12+
-			break;
-		}
+		// Z Hack, since the tessellation shaders are apparently not perfectly centered. Depends on Patch Sizes
+		targetZ += targetZ / 300f;
 		
 		// Normalize parameters (and constrain invalid parameters between 0.0 and 1.0)
 		while (targetX < 0.0f) {targetX += 1.0f;}

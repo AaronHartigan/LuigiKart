@@ -64,7 +64,6 @@ import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.swing.ImageIcon;
 
-import jdk.nashorn.api.scripting.ScriptUtils;
 import net.java.games.input.Component;
 
 public class MyGame extends VariableFrameRateGame {
@@ -861,13 +860,13 @@ public class MyGame extends VariableFrameRateGame {
 	
 	public void updateGameStateDisplay() {
 		getEngine().getSceneManager().getSceneNode("wheel3").pitch(Degreef.createFrom(physicsBody.getVForward() + physicsBody.getGravityForce()));
-		getEngine().getSceneManager().getSceneNode("wheel4").pitch(Degreef.createFrom(-physicsBody.getVForward() + physicsBody.getGravityForce()));
+		getEngine().getSceneManager().getSceneNode("wheel4").pitch(Degreef.createFrom(-(physicsBody.getVForward() + physicsBody.getGravityForce())));
 		
 		getEngine().getSceneManager().getSceneNode("wheel1yaw").pitch(Degreef.createFrom(physicsBody.getVForward() + physicsBody.getGravityForce()));
 		getEngine().getSceneManager().getSceneNode("wheel1").setLocalRotation(Matrix3f.createIdentityMatrix());
 		getEngine().getSceneManager().getSceneNode("wheel1").yaw(Degreef.createFrom(physicsBody.getActualTurn() * 30f));
 		
-		getEngine().getSceneManager().getSceneNode("wheel2yaw").pitch(Degreef.createFrom(-physicsBody.getVForward() + physicsBody.getGravityForce()));
+		getEngine().getSceneManager().getSceneNode("wheel2yaw").pitch(Degreef.createFrom(-(physicsBody.getVForward() + physicsBody.getGravityForce())));
 		getEngine().getSceneManager().getSceneNode("wheel2").setLocalRotation(Matrix3f.createIdentityMatrix());
 		getEngine().getSceneManager().getSceneNode("wheel2").yaw(Degreef.createFrom(physicsBody.getActualTurn() * 30f));
 
