@@ -184,12 +184,12 @@ public class PhysicsBody {
 			float heightChange;
 			Matrix3 newRotation = Matrix3f.createIdentityMatrix();
 			// Calculate pitch
-			float CAR_LENGTH = 0.5f;
+			float CAR_LENGTH = 0.6f;
 			position = position.add(direction.column(2).mult(CAR_LENGTH)); // Move forward
 			heading = position;
 			position = position.add(direction.column(2).mult(-CAR_LENGTH)); // Move backward
 			heightChange = (getGroundHeight(heading.x(), heading.z())) - currentHeight;
-			if (heightChange < -1f) {
+			if (heightChange < -0.5f) {
 				// if falling, don't correct pitch much
 				float pitchAngle = (float) Math.toDegrees(Math.atan(heightChange / CAR_LENGTH));
 				float newPitch = (pitchAngle - currentPitch) * elapsedSec / 3 + currentPitch;
@@ -204,12 +204,15 @@ public class PhysicsBody {
 			}
 			
 			// Calculate roll
-			float CAR_WIDTH = 0.25f;
+			float CAR_WIDTH = 0.3f;
+			// System.out.println(position);
 			position = position.add(direction.column(0).mult(CAR_LENGTH)); // Move right
 			heading = position;
+			// System.out.println(heading);
+			// System.out.println("---------");
 			position = position.add(direction.column(0).mult(-CAR_LENGTH)); // Move left
 			heightChange = (getGroundHeight(heading.x(), heading.z())) - currentHeight;
-			float rollAngle = (float) Math.toDegrees(Math.atan(heightChange / CAR_WIDTH));
+			float rollAngle = (float) Math.toDegrees(Math.atan(heightChange / CAR_WIDTH)) * 0.6f; // car rolls too much, damp it
 			float newRoll = (rollAngle - currentRoll) * elapsedSec * 5 + currentRoll;
 			rotation = rotation.rotate(Degreef.createFrom(newRoll), Vector3f.createUnitVectorZ());
 			currentRoll = newRoll;
@@ -492,31 +495,9 @@ public class PhysicsBody {
     	float amount = 0f;
 
 		// Z Hack, since the tessellation shaders are apparently not perfectly centered. Depends on Patch Sizes
-		switch (8) {
-		case 5:
-			zPercent += 0.030f;
-			break;
-		case 6:
-			zPercent += 0.020f;
-			break;
-		case 7:
-			zPercent += 0.010f;
-			break;
-		case 8:
-			zPercent += 0.006f;
-			break;
-		case 9:
-			zPercent += 0.004f;
-			break;
-		case 10:
-			zPercent += 0.002f;
-			break;
-		case 11:
-			zPercent += 0.001f;
-			break;
-		default: // 12+
-			break;
-		}
+    	zPercent += zPercent / 300f;
+		// negative is less
+		// positive is more
 
 		// Normalize parameters (and constrain invalid parameters between 0.0 and 1.0)
 		while (xPercent < 0.0f) {xPercent += 1.0f;}
