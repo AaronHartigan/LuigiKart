@@ -226,14 +226,11 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			return;
 		}
 		else {
-			if (pb.getVForward() < 10f) {
-				pb.setAccelerating(true);
-			}
-			pb.setDesiredTurn(computeTurn(ga));
+			pb.setDesiredTurn(computeTurnAndSetAcceleration(ga, pb));
 		}
 	}
 	
-	private float computeTurn(GhostAvatar ga) {
+	private float computeTurnAndSetAcceleration(GhostAvatar ga, PhysicsBody pb) {
 		Vector3 nextWaypoint = Track1.getWaypoint((ga.getWaypoint() + 1) % Track1.NUM_WAYPOINTS);
 		Vector3 pos = ga.getPos();
 		Vector3 heading = pos.add(ga.getRot().column(2));
@@ -243,8 +240,68 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			-
 			(nextWaypoint.z() - playerLine.y()) * (playerLine.z() - playerLine.x())
 		;
+		double dist = calcDistance(
+			pos.x(), pos.z(),
+			nextWaypoint.x(), nextWaypoint.z()
+		);
+		float angle1 = (float) Math.atan2(playerLine.y() - nextWaypoint.z(), playerLine.x() - nextWaypoint.x());
+		float carAngle = (float) Math.atan2(pos.z() - heading.z(), pos.x() - heading.x());
+		angle1 = (float) (angle1 * 180 / Math.PI);
+		carAngle = (float) (carAngle * 180 / Math.PI);
+		float angleDif1 = Math.abs(Math.abs(angle1) - Math.abs(carAngle));
+		//System.out.println("------");
+		//System.out.println(angleDif);
+		//System.out.println(angle1 + "," + carAngle);
 		
-		return (sign > 0) ? 1f : -1f;
+		sign = (sign > 0) ? 1f : -1f;
+		float damping1 = 1f;
+		if (angleDif1 < 30f) {
+			damping1 = angleDif1 / 30f;
+		}
+		final float DISTANCE = 30f;
+		float factor1 = (float) (dist / DISTANCE);
+		float turn = sign * factor1 * damping1;
+		if (dist < DISTANCE && dist > 0f) {
+			Vector3 nextWaypoint2 = Track1.getWaypoint((ga.getWaypoint() + 2) % Track1.NUM_WAYPOINTS);
+			float sign2 =
+				(nextWaypoint2.x() - playerLine.x()) * (playerLine.w() - playerLine.y())
+				-
+				(nextWaypoint2.z() - playerLine.y()) * (playerLine.z() - playerLine.x())
+			;
+			sign2 = (sign2 > 0) ? 1f : -1f;
+			float factor2 = 1 - factor1;
+			
+			float angle2 = (float) Math.atan2(playerLine.y() - nextWaypoint2.z(), playerLine.x() - nextWaypoint2.x());
+			angle2 = (float) (angle2 * 180 / Math.PI);
+			float damping2 = 1f;
+			float angleDif2 = Math.abs(Math.abs(angle2) - Math.abs(carAngle));
+			if (angleDif2 < 30f) {
+				damping2 = angleDif2 / 30f;
+			}
+			turn = sign * factor1 * damping1 + sign2 * factor2 * damping2;
+			/*
+			System.out.println(sign + ", " + factor1 + ", " + angle1 + ", " + damping1);
+			System.out.println(sign2 + ", " + factor2 + ", " + angle2 + ", " + damping2);
+			System.out.println(turn);
+			System.out.println("------------");
+			*/
+		}
+		if (angleDif1 > 30f) {
+			pb.setDrifting(true);
+		}
+		if (angleDif1 < 45f){
+			pb.setAccelerating(true);
+		}
+		if (pb.getVForward() < 3f) {
+			pb.setAccelerating(true);
+		}
+		return turn;
+	}
+	
+	private Vector2 intersectionPoint(Vector4 line1, Vector4 line2) {
+		return Vector2f.createFrom(
+			0f, 0f
+		);
 	}
 
 	private boolean isRacingInputDisabled(PhysicsBody pb) {

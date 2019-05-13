@@ -67,6 +67,8 @@ struct light_t {
 };
 layout (std430, binding = 0) buffer ssbo_t { light_t lights[]; } ssbo;
 
+uniform float textureMoveFactor;
+
 
 /**
  * Calculates the amount of attenuation that should be applied to the light after reaching
@@ -189,6 +191,25 @@ float ShadowCalculation(vec4 fragPosLightSpace)
     return shadow;
 }
 
+bool isInArrow(vec2 coord) {
+	if (coord.x < 0.5) {
+		if (coord.y > 0.66666 * coord.x
+			&& coord.y < (0.66666 * coord.x + 0.33333)
+		) {
+			return true;
+		}
+	} else {
+		if (coord.y > (-0.66666 * coord.x + 0.66666)
+			&& coord.y < (-0.66666 * coord.x + 1)
+		) {
+			return true;
+		}
+
+	}
+	
+	return false;
+}
+
 /**
  * MAIN METHOD
  *
@@ -217,7 +238,21 @@ void main() {
 	if (hasHeightM > 0) {
 		color = texture2D(tex_height, tes_out) * effect;
 		if (color.b > 0.9) {
-			color = vec4(0, 0, 1, 1) * effect;
+			float pi = 6.2831853;
+			float red   = sin(textureMoveFactor * pi + 0) * 0.5 + 0.5;
+			float green = sin(textureMoveFactor * pi + pi/3) * 0.5 + 0.5;
+			float blue  = sin(textureMoveFactor * pi + (pi * 2 / 3)) * 0.5 + 0.5;
+			color = vec4(red, green, blue, 1);
+			/*
+			if (isInArrow(
+				vec2(
+					(tes_out.x - 0.33398) / (0.3740234 - 0.33398),
+					(tes_out.y - 0.78223) / (0.757812 - 0.78223)
+				)
+			)) {
+				color = color * 1.5;
+			}
+			*/
 			return;
 		}
 		
@@ -230,6 +265,14 @@ void main() {
 		color = vec4(1, 1, 1, 1) * effect;
 	}
 
-
-	//color = vec4(vec3(gl_FragCoord.z), 1.0);
+	/*
+	if (isInArrow(
+		vec2(
+			(tes_out.x - 0.33398) / (0.3740234 - 0.33398),
+			(tes_out.y - 0.78223) / (0.757812 - 0.78223)
+		)
+	)) {
+		color = color * 1.5;
+	}
+	*/
 }

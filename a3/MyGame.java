@@ -64,6 +64,7 @@ import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.swing.ImageIcon;
 
+import jdk.nashorn.api.scripting.ScriptUtils;
 import net.java.games.input.Component;
 
 public class MyGame extends VariableFrameRateGame {
@@ -104,6 +105,7 @@ public class MyGame extends VariableFrameRateGame {
 	private TextureState carTexture = null;
 	private int carTextureNum = 1;
 	private long totalElapsedTime = 0;
+	private int NUM_TREES = 10;
 
 	public int getCarTextureNum() {
 		return carTextureNum;
@@ -187,9 +189,9 @@ public class MyGame extends VariableFrameRateGame {
 		lobbyRotator = new RotationController(Vector3f.createUnitVectorY(), 0.02f);
 		getEngine().getSceneManager().addController(lobbyRotator);
 		setupNetworking();
+		createTrees(sm);
 		executeScript(script);
 		setupHUD();
-		createTree(sm);
 		createGroundPlane(sm);
 		setupAmbientLight(sm);
 		setupPointLight(sm);
@@ -224,26 +226,22 @@ public class MyGame extends VariableFrameRateGame {
 		audioMgr.getEar().setOrientation(camera.getFd(), Vector3f.createUnitVectorY());
 	}
 
-	private void createTree(SceneManager sm) throws IOException {
+	private void createTrees(SceneManager sm) throws IOException {
 		//Entity treeE = getEngine().getSceneManager().createEntity("tree", "tree.obj");
 		
-		SkeletalEntity treeE = sm.createSkeletalEntity("tree", "tree.rkm", "tree.rks");
-		Texture tex = sm.getTextureManager().getAssetByPath("tree.png");
-		TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-		tstate.setTexture(tex);
-		treeE.setRenderState(tstate);
-		
-		treeE.loadAnimation("waveAnimation", "tree.rka");
-		treeE.stopAnimation();
-		treeE.playAnimation("waveAnimation", 0.5f, LOOP, 0);
-		SceneNode treeN = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(treeE.getName() + "Node");
-		treeN.attachObject(treeE);
-		// treeN.scale(0.01f, 0.01f, 0.01f);
-		treeN.translate(Vector3f.createFrom(-60.376953125f, -2f, -67.3828125f));
-		//treeN.rotate(Degreef.createFrom(-90f), Vector3f.createUnitVectorY());
-		treeN.rotate(Degreef.createFrom(-90f), Vector3f.createUnitVectorX());
-		treeN.rotate(Degreef.createFrom(-45f), Vector3f.createUnitVectorZ());
-		// treeN.translate(-1000000f, 0f, 0f);
+		for (int i = 0; i < NUM_TREES; i++) {
+			SkeletalEntity treeE = sm.createSkeletalEntity("tree" + i, "tree.rkm", "tree.rks");
+			Texture tex = sm.getTextureManager().getAssetByPath("tree.png");
+			TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+			tstate.setTexture(tex);
+			treeE.setRenderState(tstate);
+			
+			treeE.loadAnimation("waveAnimation", "tree.rka");
+			treeE.stopAnimation();
+			treeE.playAnimation("waveAnimation", 0.5f, LOOP, 0);
+			SceneNode treeN = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(treeE.getName());
+			treeN.attachObject(treeE);
+		}
 	}
 
 	private void initMeshes() throws IOException {
@@ -280,12 +278,6 @@ public class MyGame extends VariableFrameRateGame {
 			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Join Message");
 			clientProtocol.sendJoinMessage();
 		}
-	}
-
-	protected void updateScriptConstants() {
-		executeScript(script);
-		MOVE_SPEED = ((Double)(jsEngine.get("MOVE_SPEED"))).floatValue();
-		ROTATE_SPEED = ((Double)(jsEngine.get("ROTATE_SPEED"))).floatValue();
 	}
 
 	protected void setupHUD() {
@@ -327,7 +319,7 @@ public class MyGame extends VariableFrameRateGame {
 		long modifiedTime = script.lastModified();
 		if (modifiedTime > lastScriptModifiedTime) {
 			lastScriptModifiedTime = modifiedTime;
-			updateScriptConstants();
+			executeScript(script);
 		}
 		if (gameState.getRaceState() == RaceState.RACING ||
 			gameState.getRaceState() == RaceState.COUNTDOWN
@@ -341,7 +333,9 @@ public class MyGame extends VariableFrameRateGame {
 				carTextureNum
 			);
 		}
-		((SkeletalEntity) engine.getSceneManager().getEntity("tree")).update();
+		for (int i = 0; i < NUM_TREES; i++) {
+			((SkeletalEntity) engine.getSceneManager().getEntity("tree" + i)).update();
+		}
 		updatePlayerItem();
 		updateGameStateDisplay();
 		updateItemBoxesRotation();
@@ -756,6 +750,7 @@ public class MyGame extends VariableFrameRateGame {
 	}
 	
 	private void executeScript(File scriptFile) {
+		jsEngine.put("sm", getEngine().getSceneManager());
 		try {
 			FileReader fileReader = new FileReader(scriptFile);
 			jsEngine.eval(fileReader); //execute the script statements in the file

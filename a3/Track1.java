@@ -63,11 +63,11 @@ public class Track1 {
 		Vector3f.createFrom(-24.658203125f, 1f, -62.5f),
 		Vector3f.createFrom(-19.04296875f, 1f, -75.439453125f),
 		Vector3f.createFrom(-10.25390625f, 1f, -87.158203125f),
-		Vector3f.createFrom(-10.25390625f, 1f, -100.830078125f),
-		Vector3f.createFrom(-21.97265625f, 1f, -107.421875f),
-		Vector3f.createFrom(-33.447265625f, 1f, -105.712890625f),
-		Vector3f.createFrom(-42.236328125f, 1f, -96.435546875f),
-		Vector3f.createFrom(-41.259765625f, 1f, -82.51953125f),
+		Vector3f.createFrom(-14.6484375f, 1f, -100.830078125f),
+		Vector3f.createFrom(-22.216796875f, 1f, -102.294921875f),
+		Vector3f.createFrom(-33.447265625f, 1f, -99.609375f),
+		Vector3f.createFrom(-43.9453125f, 1f, -89.35546875f),
+		Vector3f.createFrom(-41.259765625f, 1f, -79.58984375f),
 	};
 	
 	private static Vector2[] pointInWaypoint = new Vector2[] {
@@ -90,11 +90,11 @@ public class Track1 {
 		Vector2f.createFrom(-24.658203125f, -63.720703125f),
 		Vector2f.createFrom(-19.04296875f, -76.66015625f),
 		Vector2f.createFrom(-10.25390625f, -88.37890625f),
-		Vector2f.createFrom(-10.25390625f, -102.05078125f),
-		Vector2f.createFrom(-23.193359375f, -107.421875f),
-		Vector2f.createFrom(-34.66796875f, -105.712890625f),
-		Vector2f.createFrom(-43.45703125f, -96.435546875f),
-		Vector2f.createFrom(-41.259765625f, -81.298828125f),
+		Vector2f.createFrom(-14.6484375f, -102.05078125f),
+		Vector2f.createFrom(-23.4375f, -102.294921875f),
+		Vector2f.createFrom(-34.66796875f, -99.609375f),
+		Vector2f.createFrom(-45.166015625f, -89.35546875f),
+		Vector2f.createFrom(-41.259765625f, -78.369140625f),
 	};
 	
 	private static Vector4[] waypointsLines = new Vector4[] {
@@ -117,11 +117,11 @@ public class Track1 {
 		Vector4f.createFrom(-24.658203125f, -62.5f, -24.658203125f, -62.255859375f),
 		Vector4f.createFrom(-19.04296875f, -75.439453125f, -18.95946773844588f, -75.21003598125344f),
 		Vector4f.createFrom(-10.25390625f, -87.158203125f, -10.096975681228855f, -86.97118055587916f),
-		Vector4f.createFrom(-10.25390625f, -100.830078125f, -10.211511675374283f, -100.58964654467476f),
-		Vector4f.createFrom(-21.97265625f, -107.421875f, -22.18408823334582f, -107.2998046875f),
-		Vector4f.createFrom(-33.447265625f, -105.712890625f, -33.69140625f, -105.712890625f),
-		Vector4f.createFrom(-42.236328125f, -96.435546875f, -42.42335069412084f, -96.59247744377114f),
-		Vector4f.createFrom(-41.259765625f, -82.51953125f, -41.30216019962572f, -82.75996283032524f),
+		Vector4f.createFrom(-14.6484375f, -100.830078125f, -14.606042925374283f, -100.58964654467476f),
+		Vector4f.createFrom(-22.216796875f, -102.294921875f, -22.42822885834582f, -102.1728515625f),
+		Vector4f.createFrom(-33.447265625f, -99.609375f, -33.69140625f, -99.609375f),
+		Vector4f.createFrom(-43.9453125f, -89.35546875f, -44.13233506912084f, -89.51239931877114f),
+		Vector4f.createFrom(-41.259765625f, -79.58984375f, -41.30216019962572f, -79.83027533032524f),
 	};
 
 	public Vector3[] getItemBoxes() {

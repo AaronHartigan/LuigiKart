@@ -93,7 +93,13 @@ class GlslTessProgram extends AbstractGlslProgram {
     private GlslProgramUniformVec4  materialSpecular;
     private GlslProgramUniformVec4  materialEmissive;
     private GlslProgramUniformFloat materialShininess;
+    
+    private GlslProgramUniformFloat textureMoveFactor;
 	
+    private long timeMS = System.currentTimeMillis();
+    private long dTime = 0;
+    private float MOVE_SPEED_MODIFIER = 0.0003f;
+    private float moveFactor = 0;
 
     public GlslTessProgram(GLCanvas canvas) {
         super(canvas);
@@ -136,6 +142,13 @@ class GlslTessProgram extends AbstractGlslProgram {
             init();
 
     	final Renderable r  = ctx.getRenderable();
+    	
+        long currentTimeMS = System.currentTimeMillis();
+        dTime = currentTimeMS - timeMS;
+        moveFactor += dTime * MOVE_SPEED_MODIFIER;
+        moveFactor %= 1;
+        timeMS = currentTimeMS;
+        textureMoveFactor.set(moveFactor);
     	
     	texTileX.set(((TessellationBody) r).getTextureTilingX());
     	texTileZ.set(((TessellationBody) r).getTextureTilingZ()); 
@@ -283,6 +296,8 @@ class GlslTessProgram extends AbstractGlslProgram {
         materialEmissive = new GlslProgramUniformVec4(this, canvas, "material.emissive");
         materialShininess = new GlslProgramUniformFloat(this, canvas, "material.shininess");
         
+        textureMoveFactor = new GlslProgramUniformFloat(this, canvas, "textureMoveFactor");
+        
         ambientLightIntensity = new GlslProgramUniformVec4(this, canvas, "global_light.intensity");
         lightsBuffer = new GlslProgramStorageBufferFloat(this, canvas);
         
@@ -321,6 +336,8 @@ class GlslTessProgram extends AbstractGlslProgram {
             materialSpecular.notifyDispose();  materialSpecular  = null;
             materialEmissive.notifyDispose();  materialEmissive  = null;
             materialShininess.notifyDispose(); materialShininess = null;
+            
+            textureMoveFactor.notifyDispose(); textureMoveFactor = null;
         	
         	ambientLightIntensity.notifyDispose(); ambientLightIntensity = null;
         	lightsBuffer.notifyDispose(); lightsBuffer = null;
