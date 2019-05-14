@@ -859,14 +859,15 @@ public class MyGame extends VariableFrameRateGame {
 	}
 	
 	public void updateGameStateDisplay() {
-		getEngine().getSceneManager().getSceneNode("wheel3").pitch(Degreef.createFrom(physicsBody.getVForward() + physicsBody.getGravityForce()));
-		getEngine().getSceneManager().getSceneNode("wheel4").pitch(Degreef.createFrom(-(physicsBody.getVForward() + physicsBody.getGravityForce())));
+		final float SPIN_FACTOR = 1.5f;
+		getEngine().getSceneManager().getSceneNode("wheel3").pitch(Degreef.createFrom(SPIN_FACTOR * (physicsBody.getVForward() + physicsBody.getGravityForce())));
+		getEngine().getSceneManager().getSceneNode("wheel4").pitch(Degreef.createFrom(-SPIN_FACTOR * (physicsBody.getVForward() + physicsBody.getGravityForce())));
 		
-		getEngine().getSceneManager().getSceneNode("wheel1yaw").pitch(Degreef.createFrom(physicsBody.getVForward() + physicsBody.getGravityForce()));
+		getEngine().getSceneManager().getSceneNode("wheel1yaw").pitch(Degreef.createFrom(SPIN_FACTOR * (physicsBody.getVForward() + physicsBody.getGravityForce())));
 		getEngine().getSceneManager().getSceneNode("wheel1").setLocalRotation(Matrix3f.createIdentityMatrix());
 		getEngine().getSceneManager().getSceneNode("wheel1").yaw(Degreef.createFrom(physicsBody.getActualTurn() * 30f));
 		
-		getEngine().getSceneManager().getSceneNode("wheel2yaw").pitch(Degreef.createFrom(-(physicsBody.getVForward() + physicsBody.getGravityForce())));
+		getEngine().getSceneManager().getSceneNode("wheel2yaw").pitch(Degreef.createFrom(-SPIN_FACTOR * (physicsBody.getVForward() + physicsBody.getGravityForce())));
 		getEngine().getSceneManager().getSceneNode("wheel2").setLocalRotation(Matrix3f.createIdentityMatrix());
 		getEngine().getSceneManager().getSceneNode("wheel2").yaw(Degreef.createFrom(physicsBody.getActualTurn() * 30f));
 
@@ -880,14 +881,14 @@ public class MyGame extends VariableFrameRateGame {
 			
 			GhostAvatar ga = entry.getValue();
 			
-			sm.getSceneNode("wheel3" + id).pitch(Degreef.createFrom(ga.getVelocityForward()));
-			sm.getSceneNode("wheel4" + id).pitch(Degreef.createFrom(-ga.getVelocityForward()));
+			sm.getSceneNode("wheel3" + id).pitch(Degreef.createFrom(SPIN_FACTOR * ga.getVelocityForward()));
+			sm.getSceneNode("wheel4" + id).pitch(Degreef.createFrom(-SPIN_FACTOR * ga.getVelocityForward()));
 			
-			sm.getSceneNode("wheel1yaw" + id).pitch(Degreef.createFrom(ga.getVelocityForward()));
+			sm.getSceneNode("wheel1yaw" + id).pitch(Degreef.createFrom(SPIN_FACTOR * ga.getVelocityForward()));
 			sm.getSceneNode("wheel1" + id).setLocalRotation(Matrix3f.createIdentityMatrix());
 			sm.getSceneNode("wheel1" + id).yaw(Degreef.createFrom(ga.getActualTurn() * 30f));
 			
-			sm.getSceneNode("wheel2yaw" + id).pitch(Degreef.createFrom(-ga.getVelocityForward()));
+			sm.getSceneNode("wheel2yaw" + id).pitch(Degreef.createFrom(-SPIN_FACTOR * ga.getVelocityForward()));
 			sm.getSceneNode("wheel2" + id).setLocalRotation(Matrix3f.createIdentityMatrix());
 			sm.getSceneNode("wheel2" + id).yaw(Degreef.createFrom(ga.getActualTurn() * 30f));
 
@@ -1248,7 +1249,7 @@ public class MyGame extends VariableFrameRateGame {
 		}
 		Vector3 coord = playerNode.getWorldPosition();
 		final float ZONE_3_Z = -85.36f;
-		final float ZONE_1_Z = 50f;
+		final float ZONE_1_Z = 75f;
 		final float ZONE_0_2_X = -35.8f;
 		switch (currentZone) {
 		case 0:

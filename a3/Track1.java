@@ -33,14 +33,14 @@ public class Track1 {
 	};
 	
 	private static Vector3[] startingPositions = new Vector3[] {
-		Vector3f.createFrom(-38.59f, 1f, -86.84f),
-		Vector3f.createFrom(-41.17f, 1f, -87.63f),
-		Vector3f.createFrom(-43.64f, 1f, -88.40f),
-		Vector3f.createFrom(-46.07f, 1f, -89.22f),
-		Vector3f.createFrom(-39.92f, 1f, -90.14f),
-		Vector3f.createFrom(-42.24f, 1f, -90.96f),
-		Vector3f.createFrom(-44.60f, 1f, -91.69f),
-		Vector3f.createFrom(-47.04f, 1f, -92.50f),
+		Vector3f.createFrom(-38.59f, 1f, -87.54f),
+		Vector3f.createFrom(-41.17f, 1f, -88.33f),
+		Vector3f.createFrom(-43.64f, 1f, -89.10f),
+		Vector3f.createFrom(-46.07f, 1f, -89.92f),
+		Vector3f.createFrom(-39.92f, 1f, -90.84f),
+		Vector3f.createFrom(-42.24f, 1f, -91.66f),
+		Vector3f.createFrom(-44.60f, 1f, -92.39f),
+		Vector3f.createFrom(-47.04f, 1f, -93.20f),
 	};
 	
 	private static Vector3[] waypoints = new Vector3[] {

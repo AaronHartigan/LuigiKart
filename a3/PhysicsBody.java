@@ -74,7 +74,7 @@ public class PhysicsBody {
 		Vector3 fv = direction.mult(rotation).column(2); // forward vector
 		
 		// Handle speed boost
-		setOnSpeedBoost(getIsSpeedBoost(position.x(), position.z(), fv, 1.25f));
+		setOnSpeedBoost(getIsSpeedBoost(position.x(), position.z(), fv, 1f));
 		
 		// Handle collision spinning
 		if (isSpinning()) {
@@ -124,8 +124,7 @@ public class PhysicsBody {
 				vForward = 0f;
 			}
 			else {
-				float frictionDirection = vForward > 0f ? -1f : 1f;
-				vForward += roadFriction * frictionDirection * elapsedSec;
+				vForward += getGroundFriction(position.x(), position.z()) * elapsedSec;
 				vForward = Math.max(vForward, getMaxReverseSpeed());
 				vForward = Math.min(vForward, getMaxSpeed());
 			}
@@ -445,7 +444,7 @@ public class PhysicsBody {
 		targetZ = 1 - (globalZ / scale + 0.5f);
 
 		// Z Hack, since the tessellation shaders are apparently not perfectly centered. Depends on Patch Sizes
-		targetZ += targetZ / 300f;
+		targetZ += targetZ / 500f + 0.0015f;
 		
 		// Normalize parameters (and constrain invalid parameters between 0.0 and 1.0)
 		while (targetX < 0.0f) {targetX += 1.0f;}
@@ -465,12 +464,50 @@ public class PhysicsBody {
 		float blue = new Color(img.getRGB(xPixelT, zPixelT)).getBlue() / 255.0f;
 		return (blue > 0.9f);
 	}
+	
+	public float getGroundFriction(float globalX, float globalZ) {
+		float scale = 250f;
+
+		// Get size bounds
+		float targetX;
+		float targetZ;
+		
+		// Normalize the target values
+		targetX = globalX / scale + 0.5f;
+		targetZ = 1 - (globalZ / scale + 0.5f);
+
+		// Z Hack, since the tessellation shaders are apparently not perfectly centered. Depends on Patch Sizes
+		targetZ += targetZ / 500f + 0.0015f;
+		
+		// Normalize parameters (and constrain invalid parameters between 0.0 and 1.0)
+		while (targetX < 0.0f) {targetX += 1.0f;}
+		while (targetX > 1.0f) {targetX -= 1.0f;}
+		while (targetZ < 0.0f) {targetZ += 1.0f;}
+		while (targetZ > 1.0f) {targetZ -= 1.0f;}
+
+		// Obtain the buffered image
+		BufferedImage img = heightMap.getImage();
+		
+		// Estimate the closest HeightMap pixel
+		float xPixel  = (img.getWidth()  - 1) * targetX;
+		float zPixel  = (img.getHeight() - 1) * targetZ;
+		int   xPixelT = (int) xPixel;
+		int   zPixelT = (int) zPixel;
+
+		float green = new Color(img.getRGB(xPixelT, zPixelT)).getGreen() / 255.0f;
+		float friction = (green > 0.9f) ? vForward * 3.0f : vForward * 0.5f;
+		friction = Math.max(10f, friction);
+		if (vForward > 0f) {
+			friction = -friction;
+		}
+		return friction;
+	}
 
     public float getAverageHeight(float xPercent, float zPercent) {
     	float amount = 0f;
 
 		// Z Hack, since the tessellation shaders are apparently not perfectly centered. Depends on Patch Sizes
-    	zPercent += zPercent / 300f;
+    	zPercent += zPercent / 500f + 0.0015f;
 		// negative is less
 		// positive is more
 
