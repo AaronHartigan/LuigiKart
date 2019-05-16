@@ -880,7 +880,7 @@ public class MyGame extends VariableFrameRateGame {
 			ghostN.setLocalRotation(entry.getValue().getRot());
 			
 			GhostAvatar ga = entry.getValue();
-			
+
 			sm.getSceneNode("wheel3" + id).pitch(Degreef.createFrom(SPIN_FACTOR * ga.getVelocityForward()));
 			sm.getSceneNode("wheel4" + id).pitch(Degreef.createFrom(-SPIN_FACTOR * ga.getVelocityForward()));
 			
