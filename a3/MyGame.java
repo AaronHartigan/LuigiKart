@@ -211,7 +211,7 @@ public class MyGame extends VariableFrameRateGame {
 			System.out.println("Audio Manager failed to initialize.");
 			return;
 		}
-		songResource1 = audioMgr.createAudioResource("test.wav", AudioResourceType.AUDIO_SAMPLE);
+		songResource1 = audioMgr.createAudioResource("HavaNagila.wav", AudioResourceType.AUDIO_SAMPLE);
 		song1 = new Sound(songResource1, SoundType.SOUND_MUSIC, 15, true);
 		song1.initialize(audioMgr);
 		
