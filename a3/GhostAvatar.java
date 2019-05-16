@@ -2,6 +2,7 @@ package a3;
 
 import java.util.UUID;
 
+import ray.audio.Sound;
 import ray.rml.Matrix3;
 import ray.rml.Matrix3f;
 import ray.rml.Vector3;
@@ -20,6 +21,7 @@ public class GhostAvatar {
 	private long lastUpdateTime = 0;
 	private int waypoint = -1;
 	private int color;
+	private Sound sound;
 
 	public GhostAvatar(UUID id) {
 		this.setId(id);
@@ -127,5 +129,13 @@ public class GhostAvatar {
 	
 	public int getColor() {
 		return color;
+	}
+
+	public Sound getSound() {
+		return sound;
+	}
+
+	public void setSound(Sound sound) {
+		this.sound = sound;
 	}
 }

@@ -179,6 +179,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 				gameState.getGhostAvatars().get(ghostID).setPhysicsBody(
 					new PhysicsBody(Track1.getPosition(MAX_PLAYERS_PER_TRACK - i), Matrix3f.createIdentityMatrix())
 				);
+				gameState.getGhostAvatars().get(ghostID).getPhysicsBody().randomizeConstants();
 			}
 		}
 	}

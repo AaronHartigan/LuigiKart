@@ -101,6 +101,7 @@ public class MyGame extends VariableFrameRateGame {
 	private RotationController lobbyRotator = null;
 	private IAudioManager audioMgr = null;
 	private Sound song1;
+	private Sound[] carSounds = new Sound[8];
 	private TextureState carTexture = null;
 	private int carTextureNum = 1;
 	private long totalElapsedTime = 0;
@@ -212,17 +213,49 @@ public class MyGame extends VariableFrameRateGame {
 			return;
 		}
 		songResource1 = audioMgr.createAudioResource("HavaNagila.wav", AudioResourceType.AUDIO_SAMPLE);
-		song1 = new Sound(songResource1, SoundType.SOUND_MUSIC, 15, true);
+		AudioResource carSoundResource = audioMgr.createAudioResource("carSound.wav", AudioResourceType.AUDIO_SAMPLE);
+		song1 = new Sound(songResource1, SoundType.SOUND_MUSIC, 20, true);
 		song1.initialize(audioMgr);
 		
-		setEarParameters(sm);
+		for (int i = 0; i < 8; i++) {
+			Sound carSound = new Sound(carSoundResource, SoundType.SOUND_EFFECT, 0, true);
+			carSounds[i] = carSound;
+			carSounds[i].initialize(audioMgr);
+
+			carSounds[i].setMaxDistance(500.0f);
+			carSounds[i].setMinDistance(2f);
+			carSounds[i].setRollOff(1.5f);
+		}
+
 		song1.play();
+		carSounds[0].play();
+		setEarParameters(getEngine().getSceneManager());
+	}
+	
+	private void updateSounds() {
+		int MIN_SOUND = 1;
+		int SOUND_FACTOR = 2;
+		setEarParameters(getEngine().getSceneManager());
+		carSounds[0].setLocation(physicsBody.getPosition());
+		carSounds[0].setVelocity(physicsBody.getRotation().column(2).mult(physicsBody.getVForward()));
+		carSounds[0].setVolume((int) Math.max(MIN_SOUND, Math.abs(physicsBody.getVForward()) * SOUND_FACTOR));
+		int i = 1;
+		for (Entry<UUID, GhostAvatar> entry : gameState.getGhostAvatars().entrySet()) {
+		    GhostAvatar ga = entry.getValue();
+		    carSounds[i].setLocation(ga.getPos());
+		    Vector3 direction = ga.getRot().column(2);
+		    float velocity = ga.getVelocityForward();
+		    carSounds[i].setVelocity(direction.mult(velocity));
+		    carSounds[i].setVolume((int) Math.max(MIN_SOUND, Math.abs(velocity) * SOUND_FACTOR));
+		    i++;
+		}
 	}
 
 	private void setEarParameters(SceneManager sm) {
-		Camera camera = sm.getCamera("MainCamera");
-		audioMgr.getEar().setLocation(camera.getPo());
-		audioMgr.getEar().setOrientation(camera.getFd(), Vector3f.createUnitVectorY());
+		SceneNode camera = sm.getSceneNode("dolphinNodeCamera");
+		audioMgr.getEar().setLocation(camera.getWorldPosition());
+		audioMgr.getEar().setOrientation(camera.getWorldForwardAxis(), Vector3f.createUnitVectorY());
+		// audioMgr.getEar().setVelocity(physicsBody.getDirection().column(2).mult(physicsBody.getVForward()));
 	}
 
 	private void createTrees(SceneManager sm) throws IOException {
@@ -338,7 +371,6 @@ public class MyGame extends VariableFrameRateGame {
 		updatePlayerItem();
 		updateGameStateDisplay();
 		updateItemBoxesRotation();
-		setEarParameters(getEngine().getSceneManager());
 		if ((gameState.getRaceState() == RaceState.RACING ||
 			gameState.getRaceState() == RaceState.COUNTDOWN)
 			&& !clientState.isConnected()
@@ -346,6 +378,7 @@ public class MyGame extends VariableFrameRateGame {
 			totalElapsedTime += elapsTime;
 			updateRaceTime(totalElapsedTime);
 		}
+		updateSounds();
 		// PRINT PLAYER POSITION
 		// System.out.println(playerNode.getWorldPosition());
 	}
@@ -801,6 +834,7 @@ public class MyGame extends VariableFrameRateGame {
 			dolphinE.setRenderState(ghostCarTexture);
 			ghostN.scale(0.3f, 0.3f, 0.3f);
 			gameState.createGhostAvatar(ghostID, ghostPosition);
+			carSounds[gameState.getGhostAvatars().size()].play();
 			
 			// front left
 			Entity wheel1 = sm.createEntity("wheel1" + ghostID.toString(), "wheelSpikes.obj");

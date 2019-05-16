@@ -3,6 +3,7 @@ package a3;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.util.Random;
 
 import ray.rage.asset.texture.Texture;
 import ray.rage.asset.texture.TextureManager;
@@ -66,6 +67,21 @@ public class PhysicsBody {
 		}
 		this.position = position;
 		this.rotation = rotation;
+	}
+
+	public void randomizeConstants() {
+		float n = random(0.8f, 1.2f);
+		accelerationRate *= n;
+		deccelerationRate *= n;
+		n = random(0.95f, 1.15f);
+		TURN_RATE *= n;
+		DRIFTING_TURN_RATE *= n;
+		n *= 0.95f;
+		MAX_BASE_SPEED *= n;
+	}
+	
+	private float random(float min, float max) {
+		return (float) (min + Math.random() * (max - min));
 	}
 	
 	public void updatePhysics(float elapsedMS) {
