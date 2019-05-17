@@ -15,6 +15,12 @@ public class TurnLeftRightAction extends AbstractInputAction {
 	@Override
 	public void performAction(float time, Event e) {
 		if (Math.abs(e.getValue()) > JOYSTICK_DEADZONE) {
+			if (e.getValue() < 0) {
+				g.guiInputLeft();
+			}
+			else {
+				g.guiInputRight();
+			}
 			if (!g.isRacingInputDisabled()) {
 				g.getPhysicsBody().setDesiredTurn(-e.getValue());
 			}

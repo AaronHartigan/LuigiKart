@@ -132,10 +132,6 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			UUID clientID = UUID.fromString(messageTokens[1]);
 			gameState.shouldRemoveGhostAvatar(clientID);
 			serverState.getConnectedPlayers().remove(clientID);
-			if (serverState.getConnectedPlayers().size() <= 0) {
-				resetTrack(1);
-				gameState.setRaceState(RaceState.LOBBY);
-			}
 		}
 		else if (messageTokens[0].compareTo("throwItem") == 0) {
 			UUID avatarID = UUID.fromString(messageTokens[1]);
@@ -314,6 +310,14 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	}
 	
 	private void updateRaceState() {
+		if (gameState.getRaceState() != RaceState.LOBBY) {
+			if (serverState.getConnectedPlayers().size() <= 0) {
+				resetTrack(1);
+				gameState.setRaceState(RaceState.LOBBY);
+				return;
+			}
+		}
+
 		switch (gameState.getRaceState()) {
 		case COUNTDOWN:
 			if (gameState.getElapsedRaceTime() >= 0) {
@@ -688,6 +692,23 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 	    		avatarIter.remove();
 	    	}
 	    	gameState.setElapsedRaceTime(0l);
+		}
+		try {
+			Iterator<Entry<UUID, Item>> itemIter = gameState.getItems().entrySet().iterator();
+			String message = new String();
+			while (itemIter.hasNext()) {
+				Map.Entry<UUID, Item> pair = (Map.Entry<UUID, Item>) itemIter.next();
+                UUID id = pair.getKey();
+                if (message.length() > 0) {
+                	message += '\0';
+                }
+                message += "removeItem," + id.toString();
+    			itemIter.remove();
+            }
+			sendPacketToAll(message);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
 		}
 	}
 

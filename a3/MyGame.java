@@ -151,7 +151,7 @@ public class MyGame extends VariableFrameRateGame {
 		DisplayMode[] modes = device.getDisplayModes();
 		DisplayMode fullscreen = modes[modes.length - 1];
 		DisplayMode windowed = new DisplayMode(1000, 700, 32, 60);
-		/*
+
 		DisplaySettingsDialog dsd = new DisplaySettingsDialog(ge.getDefaultScreenDevice());
 		dsd.showIt();
 		System.out.println(dsd.getSelectedDisplayMode());
@@ -159,11 +159,7 @@ public class MyGame extends VariableFrameRateGame {
 			dsd.getSelectedDisplayMode(),
 			dsd.isFullScreenModeSelected()
 		);
-		*/
-		RenderWindow rw = rs.createRenderWindow(
-			windowed,
-			false
-		);
+
 		Configuration conf = getEngine().getConfiguration();
 		ImageIcon icon = new ImageIcon(conf.valueOf("assets.icons.window"));
 		rw.setIconImage(icon.getImage());
@@ -246,7 +242,7 @@ public class MyGame extends VariableFrameRateGame {
 	
 	private void updateSounds() {
 		int MIN_SOUND = 1;
-		int SOUND_FACTOR = 2;
+		int SOUND_FACTOR = 1;
 		setEarParameters(getEngine().getSceneManager());
 		carSounds[0].setLocation(physicsBody.getPosition());
 		carSounds[0].setVelocity(physicsBody.getRotation().column(2).mult(physicsBody.getVForward()));
@@ -679,30 +675,36 @@ public class MyGame extends VariableFrameRateGame {
 				);
 				im.associateAction(
 					c,
-					Component.Identifier.Key.F,
-					new ToggleWireframe((GL4RenderSystem) getEngine().getRenderSystem()),
-					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
-				);
-				im.associateAction(
-					c,
-					Component.Identifier.Key.M,
-					new ToggleShadowMap((GL4RenderSystem) getEngine().getRenderSystem()),
-					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
-				);
-				im.associateAction(
-					c,
-					Component.Identifier.Key.P,
-					new TogglePerspective((GL4RenderSystem) getEngine().getRenderSystem()),
-					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
-				);
-				im.associateAction(
-					c,
 					Component.Identifier.Key.RETURN,
 					new JoinTrackAction(this),
 					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
 				);
 			}
 			else if (c.getType() == Controller.Type.GAMEPAD || c.getType() == Controller.Type.STICK) {
+				im.associateAction(
+					c,
+					Component.Identifier.Button._9,
+					new JoinTrackAction(this),
+					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Button._10,
+					new JoinTrackAction(this),
+					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Button._8,
+					new JoinTrackAction(this),
+					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+				);
+				im.associateAction(
+					c,
+					Component.Identifier.Button._7,
+					new JoinTrackAction(this),
+					InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+				);
 				im.associateAction(
 					c,
 					Component.Identifier.Button._0,
@@ -1139,6 +1141,18 @@ public class MyGame extends VariableFrameRateGame {
 	public void handlePlayerHitItem(UUID itemID) {
 		physicsBody.handleCollision();
 	}
+	
+	public void removeItem(UUID itemID) {
+		try {
+			SceneManager sm = getEngine().getSceneManager();
+			sm.destroySceneNode(itemID.toString());
+			sm.destroyEntity(itemID.toString());
+			gameState.getItems().remove(itemID);
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
 
 	public void removeItem(UUID itemID, Vector3 force) {
 		if (hasItem() && itemID.equals(item.getID())) {
@@ -1234,6 +1248,8 @@ public class MyGame extends VariableFrameRateGame {
 	
 	public void startRace(int trackID) {
 		if (clientState.getJoinedTrack() == trackID) {
+			waitingGui.hide();
+			placeGui.show();
 			gameState.setRaceState(RaceState.COUNTDOWN);
 		}
 	}
@@ -1250,7 +1266,9 @@ public class MyGame extends VariableFrameRateGame {
 			clientState.setRaceFinished(false);
 			lobbyGui.show();
 			timerGui.reset();
-			placeGui.hide();
+			if (clientState.isConnected()) {
+				placeGui.hide();
+			}
 			if (item != null) {
 				getEngine().getSceneManager().destroyEntity(item.getID().toString());
 				getEngine().getSceneManager().destroySceneNode(item.getID().toString());
@@ -1276,7 +1294,6 @@ public class MyGame extends VariableFrameRateGame {
 				setCameraToAvatar();
 				setStartingPosition(1);
 			}
-			waitingGui.show();
 		}
 		else if (gameState.getRaceState() == RaceState.WAITING){
 			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Start Track");
@@ -1287,8 +1304,6 @@ public class MyGame extends VariableFrameRateGame {
 				startRace(1);
 				totalElapsedTime = -3500;
 			}
-			placeGui.show();
-			waitingGui.hide();
 		}
 	}
 
@@ -1314,6 +1329,7 @@ public class MyGame extends VariableFrameRateGame {
 	
 	protected void finishRace() {
 		gameState.setRaceState(RaceState.FINISH);
+		physicsBody.setActualTurn(0f);
 		clientState.setRaceFinished(true);
 		clientProtocol.completedRace(clientState.getSelectedTrack());
 	}
@@ -1419,6 +1435,7 @@ public class MyGame extends VariableFrameRateGame {
 	public void joinTrack(int trackID) {
 		clientState.setJoinedTrack(trackID);
 		gameState.setRaceState(RaceState.WAITING);
+		waitingGui.show();
 		lobbyGui.hide();
 	}
 
@@ -1505,9 +1522,7 @@ public class MyGame extends VariableFrameRateGame {
             	ga.setZone(gaNewZone);
     		}
     		else if (gaCurrentZone == 3 && gaNewZone == 0) {
-    			if (ga.getLap() < 3) {
-    				ga.setLap(ga.getLap() + 1);
-    			}
+				ga.setLap(ga.getLap() + 1);
     			ga.setZone(gaNewZone);
     		}
     	}
@@ -1517,7 +1532,7 @@ public class MyGame extends VariableFrameRateGame {
 		int[] scores = new int[7];
     	Iterator<Entry<UUID, GhostAvatar>> avatarIter = gameState.getGhostAvatars().entrySet().iterator();
     	int i = 0;
-    	while (avatarIter.hasNext()) {
+    	while (i < 7 && avatarIter.hasNext()) {
             Map.Entry<UUID, GhostAvatar> pair = (Map.Entry<UUID, GhostAvatar>) avatarIter.next();
             GhostAvatar ga = pair.getValue();
             scores[i] = calculateScore(ga.getWaypoint(), ga.getPos(), ga.getLap(), ga.getZone());
@@ -1548,7 +1563,7 @@ public class MyGame extends VariableFrameRateGame {
 		Vector3 nextWaypoint = Track1.getWaypoint(nextWaypointNum);
 		int distance = (int) calcDistance(nextWaypoint.x(), nextWaypoint.z(), pos.x(), pos.z());
 		int score = (waypoint * 1000) - distance;
-		score += 1000000 * lap; // get lap number
+		score += 100000 * lap; // get lap number
 		if (zone == 0 && waypoint > 20) {
 			score -= 24 * 1000;
 		}

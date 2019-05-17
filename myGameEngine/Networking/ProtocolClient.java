@@ -169,6 +169,10 @@ public class ProtocolClient extends GameConnectionClient {
 				int itemType = Integer.parseInt(messageTokens[14]);
 				game.updateItem(itemID, itemPos, itemRot, itemType);
 			}
+			else if(messageTokens[0].compareTo("removeItem") == 0) { 
+				UUID itemID = UUID.fromString(messageTokens[1]);
+				game.removeItem(itemID);
+			}
 			else if(messageTokens[0].compareTo("itemBoxExplosion") == 0) { 
 				Vector3 itemPos = Vector3f.createFrom(
 					messageTokens[1],

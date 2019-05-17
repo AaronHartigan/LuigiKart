@@ -14,7 +14,7 @@ public class PlaceGui {
 	private SceneNode placeN;
 	private TextureState placeT;
 	private long updateTimer = 0;
-	private float UPDATE_TIME = 50f;
+	private float UPDATE_TIME = 75f;
 	
 	public PlaceGui(MyGame g) {
 		this.g = g;
