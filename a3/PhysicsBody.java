@@ -134,7 +134,7 @@ public class PhysicsBody {
 			if (
 				(!isAccelerating() && !isDeccelerating()
 				|| isAccelerating() && isDeccelerating())
-				&& Math.abs(vForward) < 0.05f
+				&& Math.abs(vForward) < 0.5f
 			) {
 				// Clamp to prevent small movement when player should be stationary
 				vForward = 0f;
