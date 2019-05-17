@@ -47,15 +47,20 @@ import ray.rage.util.Configuration;
 import ray.rml.Degreef;
 import ray.rml.Matrix3;
 import ray.rml.Matrix3f;
+import ray.rml.Vector2;
+import ray.rml.Vector2f;
 import ray.rml.Vector3;
 import ray.rml.Vector3f;
-
+import ray.rml.Vector4;
 
 import java.awt.*;
 import java.io.*;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 
@@ -94,6 +99,8 @@ public class MyGame extends VariableFrameRateGame {
 	private NodeOrbitController cameraController = null; 
 	private PhysicsBody physicsBody;
 	private LobbyGui lobbyGui = null;
+	private PlaceGui placeGui = null;
+	private WaitingGui waitingGui = null;
 	private long frametime;
 	private Light lobbyLight = null;
 	private Light sunlight = null;
@@ -106,6 +113,7 @@ public class MyGame extends VariableFrameRateGame {
 	private int carTextureNum = 1;
 	private long totalElapsedTime = 0;
 	private int NUM_TREES = 10;
+	private int wayPoint = -1;
 
 	public int getCarTextureNum() {
 		return carTextureNum;
@@ -202,6 +210,10 @@ public class MyGame extends VariableFrameRateGame {
 		createSkyBox(eng, sm);
 		timerGui = new TimerGui(this);
 		lobbyGui = new LobbyGui(this);
+		waitingGui = new WaitingGui(this);
+		waitingGui.hide();
+		placeGui = new PlaceGui(this);
+		placeGui.hide();
 		initAudio(sm);
 	}
 
@@ -241,6 +253,9 @@ public class MyGame extends VariableFrameRateGame {
 		carSounds[0].setVolume((int) Math.max(MIN_SOUND, Math.abs(physicsBody.getVForward()) * SOUND_FACTOR));
 		int i = 1;
 		for (Entry<UUID, GhostAvatar> entry : gameState.getGhostAvatars().entrySet()) {
+			if (i > 7) {
+				continue;
+			}
 		    GhostAvatar ga = entry.getValue();
 		    carSounds[i].setLocation(ga.getPos());
 		    Vector3 direction = ga.getRot().column(2);
@@ -286,6 +301,12 @@ public class MyGame extends VariableFrameRateGame {
 		bananaN.attachObject(bananaE);
 		bananaN.scale(0.01f, 0.01f, 0.01f);
 		//bananaN.translate(Vector3f.createFrom(-36.376953125f, 3f, -67.3828125f));
+		/*
+		Entity bananaE2 = getEngine().getSceneManager().createEntity("banana2", "banana.obj");
+		SceneNode bananaN2 = getEngine().getSceneManager().getRootSceneNode().createChildSceneNode(bananaE2.getName() + "Node");
+		bananaN2.attachObject(bananaE2);
+		bananaN2.translate(Vector3f.createFrom(-28.026851969588f, 3f, -90.324526874656f));
+		*/
 		bananaN.translate(-1000000f, 0f, 0f);
 	}
 	
@@ -346,7 +367,9 @@ public class MyGame extends VariableFrameRateGame {
 		if (gameState.getRaceState() != RaceState.LOBBY) {
 			playerAvatarRotator.setLocalRotation(physicsBody.getSpinRotation());
 		}
-		updateLapInfo();
+		if (gameState.getRaceState() != RaceState.FINISH) {
+			updateLapInfo();
+		}
 		updateHUD(engine, elapsTime);
 		long modifiedTime = script.lastModified();
 		if (modifiedTime > lastScriptModifiedTime) {
@@ -392,10 +415,8 @@ public class MyGame extends VariableFrameRateGame {
 		int bottomLeftY = 15;
 		int lap = raceLap == 0 ? 1 : raceLap;
 		stringList.get(0).setAll("Lap " + lap + "/3", bottomLeftX, bottomLeftY);
-		
-		int topLeftX = 15;
-		int topLeftY = rs.getCanvas().getHeight() - 30;
-		stringList.get(1).setAll("1st", topLeftX, topLeftY);
+
+		placeGui.update(calculatePlace(), elapsTime);
 
 		int bottomRightX = rs.getCanvas().getWidth() - 100;
 		int bottomRightY = 15;
@@ -520,7 +541,8 @@ public class MyGame extends VariableFrameRateGame {
 		skyN.attachObject(camera);
 		camera.setMode('n');
 
-		playerNode.translate(skyN.getWorldPosition());
+		playerNode.setLocalRotation(Matrix3f.createIdentityMatrix());
+		playerNode.setLocalPosition(skyN.getWorldPosition());
 		playerNode.moveForward(3f);
 		playerNode.moveRight(1.2f);
 		playerNode.moveDown(0.5f);
@@ -834,7 +856,10 @@ public class MyGame extends VariableFrameRateGame {
 			dolphinE.setRenderState(ghostCarTexture);
 			ghostN.scale(0.3f, 0.3f, 0.3f);
 			gameState.createGhostAvatar(ghostID, ghostPosition);
-			carSounds[gameState.getGhostAvatars().size()].play();
+			if (gameState.getGhostAvatars().size() < 8) {
+				carSounds[gameState.getGhostAvatars().size()].play();
+			}
+
 			
 			// front left
 			Entity wheel1 = sm.createEntity("wheel1" + ghostID.toString(), "wheelSpikes.obj");
@@ -928,7 +953,13 @@ public class MyGame extends VariableFrameRateGame {
 
 		}
 		for (Entry<UUID, Item> entry : gameState.getItems().entrySet()) {
-			SceneNode itemN = sm.getSceneNode(entry.getKey().toString());
+			SceneNode itemN = null;
+			try {
+				itemN = sm.getSceneNode(entry.getKey().toString());
+			}
+			catch (Exception e) {
+				continue;
+			}
 			itemN.setLocalPosition(entry.getValue().getPos());
 			itemN.setLocalRotation(entry.getValue().getRot());
 		}
@@ -1043,6 +1074,13 @@ public class MyGame extends VariableFrameRateGame {
 			SceneManager sm = getEngine().getSceneManager();
 			sm.destroySceneNode(ghostID.toString());
 			sm.destroyEntity(ghostID.toString());
+			for (int i = 1; i <= 4; i++) {
+				sm.destroySceneNode("wheel" + i + ghostID.toString());
+				sm.destroyEntity("wheel" + i + ghostID.toString());
+				if (i < 3) {
+					sm.destroySceneNode("wheel" + i + "yaw" + ghostID.toString());
+				}
+			}
 			gameState.getGhostAvatars().remove(ghostID);
 		}
 		catch (Exception e) {
@@ -1142,7 +1180,7 @@ public class MyGame extends VariableFrameRateGame {
 		try {
 			SceneManager sm = getEngine().getSceneManager();
 			if (!sm.hasSceneNode(itemID.toString())) {
-				System.out.println("Item does not exist.  Creating: " + itemID.toString());
+				if (SHOW_PACKET_MESSAGES) System.out.println("Item does not exist.  Creating: " + itemID.toString());
 				createItem(itemID, itemType);
 				return;
 			}
@@ -1206,9 +1244,26 @@ public class MyGame extends VariableFrameRateGame {
 			if (clientState.isConnected()) {
 				clientProtocol.finishTrack(clientState.getSelectedTrack());
 			}
+			gameState.setElapsedRaceTime(0);
+			gameState.setRaceState(RaceState.LOBBY);
 			clientState.setJoinedTrack(0);
 			clientState.setRaceFinished(false);
+			lobbyGui.show();
+			timerGui.reset();
+			placeGui.hide();
+			if (item != null) {
+				getEngine().getSceneManager().destroyEntity(item.getID().toString());
+				getEngine().getSceneManager().destroySceneNode(item.getID().toString());
+			}
+			item = null;
+			raceLap = 0;
+			currentZone = 3;
+			carTextureNum = 1;
+			setWaypoint(-1);
+			updateCarTexture();
+			// gameState.getGhostAvatars().clear();
 			setCameraToSky();
+			physicsBody.reset(playerNode.getWorldPosition(), playerNode.getWorldRotation());
 		}
 		else if (!clientState.hasTrack()) {
 			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Join Track");
@@ -1216,12 +1271,14 @@ public class MyGame extends VariableFrameRateGame {
 				clientProtocol.joinTrack(clientState.getSelectedTrack(), carTextureNum);
 			}
 			else {
+				if (SHOW_PACKET_MESSAGES) System.out.println("Join track: 1");
 				joinTrack(1);
 				setCameraToAvatar();
 				setStartingPosition(1);
 			}
+			waitingGui.show();
 		}
-		else {
+		else if (gameState.getRaceState() == RaceState.WAITING){
 			if (SHOW_PACKET_MESSAGES) System.out.println("Sending Start Track");
 			if (clientState.isConnected()) {
 				clientProtocol.sendStartMessage(clientState.getJoinedTrack());
@@ -1230,6 +1287,8 @@ public class MyGame extends VariableFrameRateGame {
 				startRace(1);
 				totalElapsedTime = -3500;
 			}
+			placeGui.show();
+			waitingGui.hide();
 		}
 	}
 
@@ -1259,31 +1318,29 @@ public class MyGame extends VariableFrameRateGame {
 		clientProtocol.completedRace(clientState.getSelectedTrack());
 	}
 	
+	private int determineWaypoint(int waypoint, Vector3 pos) {
+		int nextWaypoint = (waypoint + 1) % Track1.NUM_WAYPOINTS;
+		Vector4 nextWaypointLine = Track1.getWaypointLine(nextWaypoint);
+		boolean sign = getSign(Vector2f.createFrom(pos.x(), pos.z()), nextWaypointLine);
+		return (sign == getSign(Track1.getPointInWaypoint(nextWaypoint), nextWaypointLine))
+			? nextWaypoint : 
+			waypoint;
+	}
 	
-	public void updateLapInfo() {
-		int newZone = getZone();
-		// System.out.println(currentZone + " -> " + newZone);
-		if (currentZone != newZone && newZone > currentZone) {
-			currentZone = newZone;
-		}
-		else if (currentZone == 3 && newZone == 0) {
-			if (raceLap < 3) {
-				raceLap += 1;
-			}
-			else {
-				finishRace();
-			}
-			currentZone = newZone;
-		}
+	private boolean getSign(Vector2 a, Vector4 b) {
+		return (
+			(a.x() - b.x()) * (b.w() - b.y())
+			-
+			(a.y() - b.y()) * (b.z() - b.x())
+		) < 0;
 	}
 
-	protected int getZone() {
+	protected int getZone(Vector3 coord, int currentZone) {
 		if (hasRaceFinished()) {
 			return currentZone;
 		}
-		Vector3 coord = playerNode.getWorldPosition();
 		final float ZONE_3_Z = -85.36f;
-		final float ZONE_1_Z = 75f;
+		final float ZONE_1_Z = 70f;
 		final float ZONE_0_2_X = -35.8f;
 		switch (currentZone) {
 		case 0:
@@ -1322,9 +1379,11 @@ public class MyGame extends VariableFrameRateGame {
 			startingPos.z()
 		);
 		physicsBody.setPosition(startingPos);
+		physicsBody.setDirection(Matrix3f.createIdentityMatrix());
 		playerNode.setLocalPosition(
 			startingPos
 		);
+		playerNode.setLocalRotation(Matrix3f.createIdentityMatrix());
 	}
 	
 	public PhysicsBody getPhysicsBody() {
@@ -1409,5 +1468,104 @@ public class MyGame extends VariableFrameRateGame {
 
 	private void updateCarTexture() {
 		carTexture.setTexture(getTextures().getCarTexture(carTextureNum));
+	}
+
+	public void updateLapInfo() {
+        int newWaypoint = determineWaypoint(getWaypoint(), playerNode.getWorldPosition());
+        if (getWaypoint() != newWaypoint) {
+        	// System.out.println("Updating waypoint: " + newWaypoint);
+    		setWaypoint(newWaypoint);	
+        }
+		int newZone = getZone(playerNode.getWorldPosition(), currentZone);
+		if (currentZone != newZone && newZone > currentZone) {
+			currentZone = newZone;
+		}
+		else if (currentZone == 3 && newZone == 0) {
+			if (raceLap < 3) {
+				raceLap += 1;
+			}
+			else {
+				finishRace();
+				return;
+			}
+			currentZone = newZone;
+		}
+		
+		Iterator<Entry<UUID, GhostAvatar>> avatarIter = gameState.getGhostAvatars().entrySet().iterator();
+    	while (avatarIter.hasNext()) {
+            Map.Entry<UUID, GhostAvatar> pair = (Map.Entry<UUID, GhostAvatar>) avatarIter.next();
+            GhostAvatar ga = pair.getValue();
+            newWaypoint = determineWaypoint(ga.getWaypoint(), ga.getPos());
+            if (ga.getWaypoint() != newWaypoint) {
+        		ga.setWaypoint(newWaypoint);	
+            }
+            int gaNewZone = getZone(ga.getPos(), ga.getZone());
+            int gaCurrentZone = ga.getZone();
+            if (gaCurrentZone != gaNewZone && gaNewZone > gaCurrentZone) {
+            	ga.setZone(gaNewZone);
+    		}
+    		else if (gaCurrentZone == 3 && gaNewZone == 0) {
+    			if (ga.getLap() < 3) {
+    				ga.setLap(ga.getLap() + 1);
+    			}
+    			ga.setZone(gaNewZone);
+    		}
+    	}
+	}
+
+	private int calculatePlace() {
+		int[] scores = new int[7];
+    	Iterator<Entry<UUID, GhostAvatar>> avatarIter = gameState.getGhostAvatars().entrySet().iterator();
+    	int i = 0;
+    	while (avatarIter.hasNext()) {
+            Map.Entry<UUID, GhostAvatar> pair = (Map.Entry<UUID, GhostAvatar>) avatarIter.next();
+            GhostAvatar ga = pair.getValue();
+            scores[i] = calculateScore(ga.getWaypoint(), ga.getPos(), ga.getLap(), ga.getZone());
+            i++;
+    	}
+    	Arrays.sort(scores);
+
+    	int score = calculateScore(getWaypoint(), physicsBody.getPosition(), raceLap, currentZone);
+    	
+    	i = 0;
+    	while (i < 7 && score > scores[i]) {
+    		i++;
+    	}
+
+    	/*
+    	for (int j = 0; j < 7; j++) {
+    		System.out.println(scores[j] / 1000);
+    	}
+    	System.out.println("My Score: " + score / 1000 + " - " + i);
+    	System.out.println("---------");
+		*/
+
+    	return 7 - i;
+	}
+	
+	private int calculateScore(int waypoint, Vector3 pos, int lap, int zone) {
+		int nextWaypointNum = (waypoint + 1) % Track1.NUM_WAYPOINTS;
+		Vector3 nextWaypoint = Track1.getWaypoint(nextWaypointNum);
+		int distance = (int) calcDistance(nextWaypoint.x(), nextWaypoint.z(), pos.x(), pos.z());
+		int score = (waypoint * 1000) - distance;
+		score += 1000000 * lap; // get lap number
+		if (zone == 0 && waypoint > 20) {
+			score -= 24 * 1000;
+		}
+		return score;
+	}
+	
+	protected double calcDistance(float x1, float y1, float x2, float y2) {
+		float dx = (x1 - x2);
+		float dy = (y1 - y2);
+		return Math.sqrt(dx * dx + dy * dy);
+	}
+
+	public int getWaypoint() {
+		return wayPoint;
+	}
+
+	public void setWaypoint(int wayPoint) {
+		this.wayPoint = wayPoint;
 	}
 }

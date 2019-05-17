@@ -21,6 +21,9 @@ public class GhostAvatar {
 	private long lastUpdateTime = 0;
 	private int waypoint = -1;
 	private int color;
+	private int place;
+	private int zone = 3;
+	private int lap = 0;
 	private Sound sound;
 
 	public GhostAvatar(UUID id) {
@@ -137,5 +140,29 @@ public class GhostAvatar {
 
 	public void setSound(Sound sound) {
 		this.sound = sound;
+	}
+
+	public int getPlace() {
+		return place;
+	}
+
+	public void setPlace(int place) {
+		this.place = place;
+	}
+
+	public int getZone() {
+		return zone;
+	}
+
+	public void setZone(int zone) {
+		this.zone = zone;
+	}
+
+	public int getLap() {
+		return lap;
+	}
+
+	public void setLap(int lap) {
+		this.lap = lap;
 	}
 }

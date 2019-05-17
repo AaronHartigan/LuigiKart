@@ -43,7 +43,6 @@ public class ProtocolClient extends GameConnectionClient {
 				System.out.println("Client Message: " + message);
 				if (messageTokens[1].compareTo("success") == 0) {
 					game.getClientState().setConnected(true);
-					sendCreateMessage(game.getPlayerPosition(), game.getCarTextureNum());
 				}
 				else if (messageTokens[1].compareTo("failure") == 0) {
 					game.getClientState().setConnected(false);
@@ -119,6 +118,7 @@ public class ProtocolClient extends GameConnectionClient {
 						game.joinTrack(trackID);
 						game.setCameraToAvatar();
 						game.setStartingPosition(position);
+						sendCreateMessage(game.getPlayerPosition(), game.getCarTextureNum());
 					}
 					else {
 						game.getClientState().setJoinedTrack(0);

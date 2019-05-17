@@ -15,7 +15,8 @@ public class PreloadTextures {
 		gray1,
 		n1, n2, n3, n4, n5, n6, n7, n8, n9, n0, colon,
 		background,
-		car1, car2, car3, car4, car5, car6, car7, car8
+		car1, car2, car3, car4, car5, car6, car7, car8,
+		first, second, third, fourth, fifth, sixth, seventh, eighth
 	;
 	
 	enum TEXTURE {
@@ -27,7 +28,8 @@ public class PreloadTextures {
 		GRAY1,
 		N1, N2, N3, N4, N5, N6, N7, N8, N9, N0, COLON,
 		BACKGROUND,
-		CAR1, CAR2, CAR3, CAR4, CAR5, CAR6, CAR7, CAR8
+		CAR1, CAR2, CAR3, CAR4, CAR5, CAR6, CAR7, CAR8,
+		FIRST, SECOND, THIRD, FOURTH, FIFTH, SIXTH, SEVENTH, EIGHTH
 	}
 
 	public PreloadTextures(MyGame myGame) {
@@ -63,10 +65,40 @@ public class PreloadTextures {
 			car7 = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("car7.png");
 			car8 = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("car8.png");
 			colon = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("colon.png");
+			first = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("first.png");
+			second = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("second.png");
+			third = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("third.png");
+			fourth = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("fourth.png");
+			fifth = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("fifth.png");
+			sixth = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("sixth.png");
+			seventh = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("seventh.png");
+			eighth = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("eighth.png");
 			background = g.getEngine().getSceneManager().getTextureManager().getAssetByPath("timerBackground.png");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public Texture getPlace(int num) {
+		switch(num) {
+		case 0:
+			return first;
+		case 1:
+			return second;
+		case 2:
+			return third;
+		case 3:
+			return fourth;
+		case 4:
+			return fifth;
+		case 5:
+			return sixth;
+		case 6:
+			return seventh;
+		case 7:
+			return eighth;
+		}
+		return null;
 	}
 	
 	public Texture getTexture(int num) {

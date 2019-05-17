@@ -9,7 +9,6 @@ import ray.rage.scene.Entity;
 import ray.rage.scene.SceneNode;
 
 public class LobbyGui {
-	private MyGame g;
 	private Entity leftChevron;
 	private Entity rightChevron;
 	private Entity select;
@@ -20,8 +19,6 @@ public class LobbyGui {
 	private final float HIDE_TRANSLATE = 1000000f;
 
 	public LobbyGui(MyGame g) {
-		this.g = g;
-		
 		try {
 			leftChevron = g.getEngine().getSceneManager().createEntity("leftChevron", "plane.obj");
 			rightChevron = g.getEngine().getSceneManager().createEntity("rightChevron", "plane.obj");

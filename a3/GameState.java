@@ -74,8 +74,10 @@ public class GameState {
 	}
 
 	public void updateItem(UUID itemID, Vector3 itemPos, Matrix3 itemRot) {
-		items.get(itemID).setPos(itemPos);
-		items.get(itemID).setRot(itemRot);
+		if (items.get(itemID) != null) {
+			items.get(itemID).setPos(itemPos);
+			items.get(itemID).setRot(itemRot);
+		}
 	}
 
 	public long getElapsedRaceTime() {

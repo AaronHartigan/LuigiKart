@@ -184,4 +184,18 @@ public class TimerGui {
 
 		ms2T.setTexture(g.getTextures().getTexture(ms2Time));
 	}
+
+	public void reset() {
+		minute1T.setTexture(g.getTextures().getTexture(0));
+
+		second0T.setTexture(g.getTextures().getTexture(0));
+
+		second1T.setTexture(g.getTextures().getTexture(0));
+
+		ms0T.setTexture(g.getTextures().getTexture(0));
+
+		ms1T.setTexture(g.getTextures().getTexture(0));
+
+		ms2T.setTexture(g.getTextures().getTexture(0));
+	}
 }

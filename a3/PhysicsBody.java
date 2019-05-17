@@ -3,7 +3,6 @@ package a3;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.util.Random;
 
 import ray.rage.asset.texture.Texture;
 import ray.rage.asset.texture.TextureManager;
@@ -38,7 +37,6 @@ public class PhysicsBody {
 	private boolean isDrifting = false;
 	private float driftingDirection = 0f;
 	private float MAX_BASE_SPEED = 20f;
-	private float roadFriction = 10f;
 	private float desiredTurn = 0f;
 	private float desiredTurnRollingAverage = 0f;
 	private float actualTurn = 0f;
@@ -73,7 +71,7 @@ public class PhysicsBody {
 		float n = random(0.8f, 1.2f);
 		accelerationRate *= n;
 		deccelerationRate *= n;
-		n = random(0.95f, 1.15f);
+		n = random(1f, 1.15f);
 		TURN_RATE *= n;
 		DRIFTING_TURN_RATE *= n;
 		n *= 0.95f;
@@ -598,4 +596,23 @@ public class PhysicsBody {
 		setDrifting(false);
 		setDesiredTurn(0f);
 	}
+
+	public void reset(Vector3 position, Matrix3 rotation) {
+		this.position = position;
+		this.rotation = rotation;
+		isOnGround = true;
+		isAccelerating = false;
+		isDeccelerating = false;
+		isBraking = false;
+		isOnSpeedBoost = false;
+		spinDirection = 0f;
+		spinoutTimer = 0f;
+		desiredTurn = 0f;
+		desiredTurnRollingAverage = 0f;
+		actualTurn = 0f;
+		vForward = 0f; // forward velicty
+		vUp = 0f; // upward velocity
+		currentPitch = 0f;
+		currentRoll = 0f;
+	}	
 }
